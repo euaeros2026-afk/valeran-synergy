@@ -33,7 +33,7 @@ async function requireAuth(req, res, next) {
   const { data: { user }, error } = await supabase.auth.getUser(token);
   if (error || !user) return res.status(401).json({ error: 'Invalid token' });
 
-  const { data: partner } = await supabase.from('partners').select('*').eq('email', user.email).single();
+  const { data: partner } = await supabase.from('partner_profiles').select('*').eq('email', user.email).single();
   if (!partner) return res.status(403).json({ error: 'Not a registered partner' });
 
   req.user = user;
@@ -376,7 +376,7 @@ async function getActiveSessionId(date) {
 
 
 // ============================================================
-// TELEGRAM WEBHOOK — receive messages from group
+// TELEGRAM WEBHOOK â receive messages from group
 // ============================================================
 app.post('/api/telegram/webhook', async (req, res) => {
   res.sendStatus(200);
@@ -387,19 +387,26 @@ app.post('/api/telegram/webhook', async (req, res) => {
     if (!/^valeran[,\s]/i.test(text) && !/^valeran$/i.test(text)) return;
     const query = text.replace(/^valeran[,\s]*/i, '').trim() || 'Hello';
     const from = msg.from?.first_name || 'Partner';
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const response = await client.messages.create({
-      model: 'claude-opus-4-5',
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: `You are Valeran, the AI field intelligence assistant for Synergy Ventures at Canton Fair 2026. You help the team source products, calculate margins, research suppliers, and act as a personal assistant.\n\nYou are responding in the team Telegram group to ${from}.\nBe concise and practical. Use bullet points for lists. Max 300 words unless a detailed report is requested.\nDetect the language of the query and respond in the same language (English, Russian or Bulgarian).\n\nMessage: ${query}` }]
+    const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: `You are Valeran, the AI field intelligence assistant for Synergy Ventures at Canton Fair 2026. You help the team source products, calculate margins, research suppliers, and act as a personal assistant.\n\nYou are responding in the team Telegram group to ${from}.\nBe concise and practical. Use bullet points for lists. Max 300 words unless a detailed report is requested.\nDetect the language of the query and respond in the same language (English, Russian or Bulgarian).\n\nMessage: ${query}` }]
+      })
     });
+    const response = await aiResp.json();
     await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: msg.chat.id,
-        text: '🤖 ' + response.content[0].text,
+        text: 'ð¤ ' + response.content[0].text,
         reply_to_message_id: msg.message_id
       })
     });
