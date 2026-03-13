@@ -374,6 +374,38 @@ async function getActiveSessionId(date) {
   return data?.id;
 }
 
+
+// ============================================================
+// TELEGRAM WEBHOOK — receive messages from group
+// ============================================================
+app.post('/api/telegram/webhook', async (req, res) => {
+  res.sendStatus(200);
+  try {
+    const msg = req.body.message || req.body.channel_post;
+    if (!msg || !msg.text) return;
+    const text = msg.text.trim();
+    if (!/^valeran[,\s]/i.test(text) && !/^valeran$/i.test(text)) return;
+    const query = text.replace(/^valeran[,\s]*/i, '').trim() || 'Hello';
+    const from = msg.from?.first_name || 'Partner';
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const response = await client.messages.create({
+      model: 'claude-opus-4-5',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: `You are Valeran, the AI field intelligence assistant for Synergy Ventures at Canton Fair 2026. You help the team source products, calculate margins, research suppliers, and act as a personal assistant.\n\nYou are responding in the team Telegram group to ${from}.\nBe concise and practical. Use bullet points for lists. Max 300 words unless a detailed report is requested.\nDetect the language of the query and respond in the same language (English, Russian or Bulgarian).\n\nMessage: ${query}` }]
+    });
+    await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: msg.chat.id,
+        text: '🤖 ' + response.content[0].text,
+        reply_to_message_id: msg.message_id
+      })
+    });
+  } catch(e) { console.error('TG webhook error:', e); }
+});
+
 // ============================================================
 // START SERVER
 // ============================================================
