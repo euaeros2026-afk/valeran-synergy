@@ -85,7 +85,7 @@ app.get('/api/memory', requireAuth, async function(req, res) {
 app.post('/api/catalogue/upload', requireAuth, upload.single('file'), async function(req, res) {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file' });
-    var sid = req.body.session_id || (await getActiveSessionId()) || 'default';
+    var sid = req.body.session_id || null;
     var upR = await supabase.from('catalogue_uploads').insert({ filename: req.file.originalname || 'file', supplier_id: req.body.supplier_id || null, session_id: sid, uploaded_by: req.partner && req.partner.id, analysis_status: 'processing' }).select().single();
     var uploadId = upR.data && upR.data.id;
     var fileMime = req.file.mimetype || '';
@@ -147,7 +147,7 @@ app.get('/api/research/results', requireAuth, async function(req, res) {
 
 app.post('/api/chat/photo', requireAuth, upload.single('photo'), async function(req, res) {
   try {
-    var sid = req.body.session_id || (await getActiveSessionId()) || 'default';
+    var sid = req.body.session_id || (await getActiveSessionId()) || null;
     if (!req.file) return res.status(400).json({ error: 'No photo' });
     var labels = [];
     try {
@@ -163,7 +163,7 @@ app.post('/api/chat/photo', requireAuth, upload.single('photo'), async function(
 
 app.post('/api/chat/voice', requireAuth, upload.single('audio'), async function(req, res) {
   try {
-    var sid = req.body.session_id || (await getActiveSessionId()) || 'default';
+    var sid = req.body.session_id || (await getActiveSessionId()) || null;
     if (!req.file) return res.status(400).json({ error: 'No audio' });
     var transcript = '';
     try {
@@ -259,6 +259,17 @@ app.get('/api/presence', requireAuth, async function(req, res) {
   res.json(r.error ? { error: r.error } : { presence: r.data || [] });
 });
 app.post('/api/welcome', requireAuth, async function(req, res) { res.json(await tg.sendWelcomeMessage()); });
+app.get('/api/stats', requireAuth, async function(req, res) {
+  try {
+    var [ps,ss,us] = await Promise.all([
+      supabase.from('products').select('*', { count: 'exact', head: true }),
+      supabase.from('suppliers').select('*', { count: 'exact', head: true }),
+      supabase.from('catalogue_uploads').select('*', { count: 'exact', head: true })
+    ]);
+    res.json({ products: ps.count||0, suppliers: ss.count||0, uploads: us.count||0, meetings: 0 });
+  } catch(e) { res.json({ products:0, suppliers:0, uploads:0, meetings:0 }); }
+});
+
 app.get('/api/partners', requireAuth, async function(req, res) {
   var r = await supabase.from('partner_profiles').select('id, name, role, at_fair, language, email');
   res.json(r.error ? { error: r.error } : { partners: r.data || [] });
@@ -327,7 +338,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
 
   var from   = (msg.from && msg.from.first_name) || 'Partner';
   var chatId = msg.chat && msg.chat.id;
-  var sid    = (await getActiveSessionId()) || 'default';
+  var sid    = (await getActiveSessionId()) || null;
 
   // ---- ALL FILE TYPES ----
   if (msg.document) {
