@@ -105,7 +105,7 @@ export default function Chat({ supabase, partner }) {
   }
   async function loadMessages() {
     const t = await getToken()
-    const r = await fetch(API + '/api/chat/messages?limit=60', { headers: { Authorization: 'Bearer ' + t } }).catch(() => null)
+    const r = await fetch(API + '/api/chat/messages?limit=60&session_id=team-chat', { headers: { Authorization: 'Bearer ' + t } }).catch(() => null)
     if (r && r.ok) { const d = await r.json(); if (d.messages) setMessages(d.messages) }
   }
 
@@ -121,7 +121,7 @@ export default function Chat({ supabase, partner }) {
     if (isValeran(msg)) return false
     var sender = (msg.telegram_user || '').toLowerCase()
     var me = myName.toLowerCase()
-    return sender === me || sender === '' || msg.partner_id === (partner && partner.id)
+    return sender === me || msg.partner_id === (partner && partner.id)
   }
 
   async function sendMessage() {
@@ -134,8 +134,8 @@ export default function Chat({ supabase, partner }) {
     try {
       const t = await getToken()
       if (isValeranCall) {
-        // Ask Valeran — uses AI
-        const r = await fetch(API + '/api/chat/message', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text }) })
+        // Ask Valeran â uses AI
+        const r = await fetch(API + '/api/chat/message', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text, session_id: 'team-chat' }) })
         const d = await r.json()
         setMessages(p => {
           const f = p.filter(m => m.id !== tempId)
@@ -144,8 +144,8 @@ export default function Chat({ supabase, partner }) {
           return f
         })
       } else {
-        // Team message — no AI, just save and show
-        await fetch(API + '/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text }) })
+        // Team message â no AI, just save and show
+        await fetch(API + '/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text, session_id: 'team-chat' }) })
         setMessages(p => {
           const f = p.filter(m => m.id !== tempId)
           f.push({ id: 'u-' + Date.now(), role: 'user', content: text, telegram_user: myName, created_at: new Date().toISOString() })
@@ -164,13 +164,13 @@ export default function Chat({ supabase, partner }) {
     const fd = new FormData(); fd.append('photo', file)
     if (input.trim()) { fd.append('caption', input); setInput('') }
     const tempId = 'tmp-ph-' + Date.now()
-    setMessages(p => [...p, { id: tempId, role: 'user', content: '📷 ' + file.name, telegram_user: myName, created_at: new Date().toISOString() }])
+    setMessages(p => [...p, { id: tempId, role: 'user', content: 'ð· ' + file.name, telegram_user: myName, created_at: new Date().toISOString() }])
     try {
       const r = await fetch(API + '/api/chat/photo', { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd })
       const d = await r.json()
       setMessages(p => {
         const f = p.filter(m => m.id !== tempId)
-        f.push({ id: 'u-p-' + Date.now(), role: 'user', content: '📷 ' + file.name, telegram_user: myName, created_at: new Date().toISOString() })
+        f.push({ id: 'u-p-' + Date.now(), role: 'user', content: 'ð· ' + file.name, telegram_user: myName, created_at: new Date().toISOString() })
         if (d.reply) f.push({ id: 'a-p-' + Date.now(), role: 'assistant', content: d.reply, created_at: new Date().toISOString() })
         return f
       })
@@ -183,13 +183,13 @@ export default function Chat({ supabase, partner }) {
     const t = await getToken()
     const fd = new FormData(); fd.append('file', file)
     const tempId = 'tmp-f-' + Date.now()
-    setMessages(p => [...p, { id: tempId, role: 'user', content: '📎 ' + file.name + ' — analysing...', telegram_user: myName, created_at: new Date().toISOString() }])
+    setMessages(p => [...p, { id: tempId, role: 'user', content: 'ð ' + file.name + ' â analysing...', telegram_user: myName, created_at: new Date().toISOString() }])
     try {
       const r = await fetch(API + '/api/catalogue/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd })
       const d = await r.json()
       setMessages(p => {
         const f = p.filter(m => m.id !== tempId)
-        f.push({ id: 'u-f-' + Date.now(), role: 'user', content: '📎 ' + file.name, telegram_user: myName, created_at: new Date().toISOString() })
+        f.push({ id: 'u-f-' + Date.now(), role: 'user', content: 'ð ' + file.name, telegram_user: myName, created_at: new Date().toISOString() })
         if (d.message) f.push({ id: 'a-f-' + Date.now(), role: 'assistant', content: d.message, created_at: new Date().toISOString() })
         return f
       })
@@ -215,13 +215,13 @@ export default function Chat({ supabase, partner }) {
         const fd = new FormData(); fd.append('audio', blob, 'voice.webm')
         setSending(true)
         const tempId = 'tmp-v-' + Date.now()
-        setMessages(p => [...p, { id: tempId, role: 'user', content: '🎤 ...', telegram_user: myName, created_at: new Date().toISOString() }])
+        setMessages(p => [...p, { id: tempId, role: 'user', content: 'ð¤ ...', telegram_user: myName, created_at: new Date().toISOString() }])
         try {
           const r = await fetch(API + '/api/chat/voice', { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd })
           const d = await r.json()
           setMessages(p => {
             const f = p.filter(m => m.id !== tempId)
-            if (d.transcript) f.push({ id: 'v-u-' + Date.now(), role: 'user', content: '🎤 "' + d.transcript + '"', telegram_user: myName, created_at: new Date().toISOString() })
+            if (d.transcript) f.push({ id: 'v-u-' + Date.now(), role: 'user', content: 'ð¤ "' + d.transcript + '"', telegram_user: myName, created_at: new Date().toISOString() })
             if (d.reply) f.push({ id: 'v-a-' + Date.now(), role: 'assistant', content: d.reply, created_at: new Date().toISOString() })
             return f
           })
@@ -280,16 +280,16 @@ export default function Chat({ supabase, partner }) {
 
           {/* Phase timeline */}
           <div className="dash-card">
-            <div className="dash-card-title">Canton Fair 2026 · 139th Session</div>
+            <div className="dash-card-title">Canton Fair 2026 Â· 139th Session</div>
             {[
-              { phase: 'Phase 1', dates: 'Apr 15–19', cats: 'Electronics, Hardware, Lighting, Tools, Smart Home', color: '#e8a045' },
-              { phase: 'Phase 2', dates: 'Apr 23–27', cats: 'Home Goods, Ceramics, Furniture, Gifts, Garden', color: '#7c6af7' },
-              { phase: 'Phase 3', dates: 'May 1–5',   cats: 'Fashion, Textiles, Toys, Personal Care, Food',  color: '#4ade80' },
+              { phase: 'Phase 1', dates: 'Apr 15â19', cats: 'Electronics, Hardware, Lighting, Tools, Smart Home', color: '#e8a045' },
+              { phase: 'Phase 2', dates: 'Apr 23â27', cats: 'Home Goods, Ceramics, Furniture, Gifts, Garden', color: '#7c6af7' },
+              { phase: 'Phase 3', dates: 'May 1â5',   cats: 'Fashion, Textiles, Toys, Personal Care, Food',  color: '#4ade80' },
             ].map(ph => (
               <div key={ph.phase} style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'flex-start' }}>
                 <div style={{ width: 4, borderRadius: 4, background: ph.color, alignSelf: 'stretch', flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: ph.color }}>{ph.phase} · {ph.dates}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: ph.color }}>{ph.phase} Â· {ph.dates}</div>
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>{ph.cats}</div>
                 </div>
               </div>
@@ -300,11 +300,11 @@ export default function Chat({ supabase, partner }) {
           <div className="dash-card">
             <div className="dash-card-title">Team</div>
             {[
-              { name: 'Alexander Oslan', role: 'Owner · Strategy', lang: 'EN' },
-              { name: 'Ina Kanaplianikava', role: 'Partner · Quality & Suppliers', lang: 'RU' },
-              { name: 'Konstantin Khoch', role: 'Partner · Negotiations', lang: 'RU' },
-              { name: 'Konstantin Ganev', role: 'Partner · Logistics', lang: 'BG' },
-              { name: 'Slavi Mikinski', role: 'Observer · Remote', lang: 'BG' },
+              { name: 'Alexander Oslan', role: 'Owner Â· Strategy', lang: 'EN' },
+              { name: 'Ina Kanaplianikava', role: 'Partner Â· Quality & Suppliers', lang: 'RU' },
+              { name: 'Konstantin Khoch', role: 'Partner Â· Negotiations', lang: 'RU' },
+              { name: 'Konstantin Ganev', role: 'Partner Â· Logistics', lang: 'BG' },
+              { name: 'Slavi Mikinski', role: 'Observer Â· Remote', lang: 'BG' },
             ].map(m => {
               var online = presence.find(function(p) { return p.name && p.name.toLowerCase().indexOf(m.name.split(' ')[0].toLowerCase()) > -1 && p.is_online })
               return (
@@ -312,10 +312,10 @@ export default function Chat({ supabase, partner }) {
                   <Avatar name={m.name} size={32} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</div>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{m.role} · {m.lang}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{m.role} Â· {m.lang}</div>
                   </div>
                   <div style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: online ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.06)', color: online ? '#4ade80' : 'rgba(255,255,255,0.3)', border: '1px solid ' + (online ? 'rgba(74,222,128,0.3)' : 'transparent') }}>
-                    {online ? '● online' : 'offline'}
+                    {online ? 'â online' : 'offline'}
                   </div>
                 </div>
               )
@@ -325,21 +325,21 @@ export default function Chat({ supabase, partner }) {
           {/* Venue */}
           <div className="dash-card">
             <div className="dash-card-title">Venue & Contacts</div>
-            <div className="dash-info-row"><span>📍</span><span>Pazhou Complex, No.380 Yuejiang Zhong Rd, Guangzhou</span></div>
-            <div className="dash-info-row"><span>🌡️</span><span>April weather: 22–28°C, humid, frequent rain — bring umbrella</span></div>
-            <div className="dash-info-row"><span>📞</span><span>CFTC Hotline: 4000-888-999 (CN) / +86-20-28-888-999</span></div>
-            <div className="dash-info-row"><span>🌐</span><span>cantonfair.org.cn · Canton Fair APP</span></div>
-            <div className="dash-info-row"><span>✈️</span><span>Register at: Airport · South Station · Pazhou Ferry · Designated Hotels</span></div>
+            <div className="dash-info-row"><span>ð</span><span>Pazhou Complex, No.380 Yuejiang Zhong Rd, Guangzhou</span></div>
+            <div className="dash-info-row"><span>ð¡ï¸</span><span>April weather: 22â28Â°C, humid, frequent rain â bring umbrella</span></div>
+            <div className="dash-info-row"><span>ð</span><span>CFTC Hotline: 4000-888-999 (CN) / +86-20-28-888-999</span></div>
+            <div className="dash-info-row"><span>ð</span><span>cantonfair.org.cn Â· Canton Fair APP</span></div>
+            <div className="dash-info-row"><span>âï¸</span><span>Register at: Airport Â· South Station Â· Pazhou Ferry Â· Designated Hotels</span></div>
           </div>
 
           {/* Margin target */}
           <div className="dash-card">
             <div className="dash-card-title">Margin Formula</div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 }}>
-              <div>Landed = buy × 1.12 (freight) × 1.035 (duty)</div>
-              <div>Net margin = (sell − landed − 15% fees − 10% ads) ÷ sell</div>
+              <div>Landed = buy Ã 1.12 (freight) Ã 1.035 (duty)</div>
+              <div>Net margin = (sell â landed â 15% fees â 10% ads) Ã· sell</div>
               <div style={{ marginTop: 6, color: '#4ade80', fontWeight: 600 }}>Target: &gt;35% net margin</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Example: buy $4 → €3.65 → landed €4.24 → sell €18 → margin 51% ✅</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Example: buy $4 â â¬3.65 â landed â¬4.24 â sell â¬18 â margin 51% â</div>
             </div>
           </div>
         </div>
@@ -351,7 +351,7 @@ export default function Chat({ supabase, partner }) {
           <div className="messages-list">
             {/* Hint */}
             <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.25)', padding: '8px 0 4px' }}>
-              Type "Valeran, ..." to ask the AI · Otherwise messages go to the team
+              Type "Valeran, ..." to ask the AI Â· Otherwise messages go to the team
             </div>
 
             {messages.map(msg => {
@@ -381,7 +381,7 @@ export default function Chat({ supabase, partner }) {
                 <div className="bubble valeran-bubble typing"><span/><span/><span/></div>
               </div>
             )}
-            {error && <div className="chat-error">⚠️ {error}</div>}
+            {error && <div className="chat-error">â ï¸ {error}</div>}
             <div ref={bottomRef} />
           </div>
 
@@ -394,7 +394,7 @@ export default function Chat({ supabase, partner }) {
             <input className="chat-input" value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-              placeholder='Message team · "Valeran, …" for AI'
+              placeholder='Message team Â· "Valeran, â¦" for AI'
               disabled={sending || recording} />
             <button className={'input-action-btn mic-btn ' + (recording ? 'recording' : '')}
               onMouseDown={startRecording} onMouseUp={stopRecording}
