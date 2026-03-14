@@ -11,7 +11,7 @@ function nameColor(n){if(!n)return'#888';var k=n.toLowerCase();for(var key in CO
 function initials(n){if(!n)return'?';var p=n.trim().split(' ');return p.length>=2?(p[0][0]+p[1][0]).toUpperCase():n.slice(0,2).toUpperCase()}
 function Avatar({name,size=28}){return <div style={{width:size,height:size,borderRadius:'50%',background:nameColor(name),display:'flex',alignItems:'center',justifyContent:'center',fontSize:size*0.38,fontWeight:'700',color:'#000',flexShrink:0}}>{initials(name)}</div>}
 
-// Global — readable by all callbacks without closure issues
+// Global â readable by all callbacks without closure issues
 window.__valeranUser = window.__valeranUser || ''
 
 export default function Chat({ supabase, partner }) {
@@ -36,7 +36,7 @@ export default function Chat({ supabase, partner }) {
   const typingTimers = useRef({})
   const bcastRef    = useRef(null)
 
-  // Keep global in sync — no closure capture needed
+  // Keep global in sync â no closure capture needed
   const myName = (partner && partner.name) || ''
   window.__valeranUser = myName
 
@@ -47,7 +47,7 @@ export default function Chat({ supabase, partner }) {
     pingPresence()
     pingRef.current = setInterval(() => { pingPresence(); loadPresence() }, 30000)
 
-    // REALTIME: read window.__valeranUser — never stale, no closure
+    // REALTIME: read window.__valeranUser â never stale, no closure
     const ch = supabase.channel('sv_chat_v6')
       .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat_messages' }, function(payload) {
         var m = payload.new
@@ -71,7 +71,7 @@ export default function Chat({ supabase, partner }) {
             }
             return replaced
           }
-          // Someone else's message — just add it
+          // Someone else's message â just add it
           return prev.concat([m])
         })
       })
@@ -155,7 +155,7 @@ export default function Chat({ supabase, partner }) {
     var full=text
     if(replyTo){full='[Reply to '+replyTo.senderName+': "'+replyTo.content.slice(0,60)+(replyTo.content.length>60?'...':'')+'"]
 '+text;setReplyTo(null)}
-    var isAI=/^(valeran|valera|валера)[,s!?.]/i.test(text)
+    var isAI = /^(valeran|valera)[,\s!?.]/i.test(text) || /^\u0432\u0430\u043b\u0435\u0440\u0430[,\s]/i.test(text)
     addTemp(full)
     try{
       var t=await getToken()
@@ -174,14 +174,14 @@ export default function Chat({ supabase, partner }) {
     setSending(true);setError(null);var t=await getToken()
     var fd=new FormData();fd.append('photo',file)
     if(input.trim()){fd.append('caption',input);setInput('')}
-    addTemp('📷 '+file.name)
+    addTemp('ð· '+file.name)
     try{var r=await fetch(API+'/api/chat/photo',{method:'POST',headers:{Authorization:'Bearer '+t},body:fd});var d=await r.json();if(d.reply)addAI(d.reply)}catch(e){setError('Photo failed')}
     finally{setSending(false)}
   }
   async function sendFile(file){
     setSending(true);setError(null);var t=await getToken()
     var fd=new FormData();fd.append('file',file)
-    addTemp('📎 '+file.name+' — analysing...')
+    addTemp('ð '+file.name+' â analysing...')
     try{var r=await fetch(API+'/api/catalogue/upload',{method:'POST',headers:{Authorization:'Bearer '+t},body:fd});var d=await r.json();if(d.message)addAI(d.message)}catch(e){setError('File failed')}
     finally{setSending(false)}
   }
@@ -195,8 +195,8 @@ export default function Chat({ supabase, partner }) {
       rec.onstop=async function(){
         var blob=new Blob(chunks,{type:'audio/webm'});var t=await getToken()
         var fd=new FormData();fd.append('audio',blob,'v.webm')
-        setSending(true);addTemp('🎤 ...')
-        try{var r=await fetch(API+'/api/chat/voice',{method:'POST',headers:{Authorization:'Bearer '+t},body:fd});var d=await r.json();if(d.transcript){setMessages(function(p){var f=[].concat(p);for(var i=f.length-1;i>=0;i--){if(f[i]._tmp&&f[i].content==='🎤 ...'){f[i]=Object.assign({},f[i],{content:'🎤 "'+d.transcript+'"'});break}}return f})}if(d.reply)addAI(d.reply)}catch(e){setError('Voice failed')}finally{setSending(false);stream.getTracks().forEach(function(t){t.stop()})}
+        setSending(true);addTemp('ð¤ ...')
+        try{var r=await fetch(API+'/api/chat/voice',{method:'POST',headers:{Authorization:'Bearer '+t},body:fd});var d=await r.json();if(d.transcript){setMessages(function(p){var f=[].concat(p);for(var i=f.length-1;i>=0;i--){if(f[i]._tmp&&f[i].content==='ð¤ ...'){f[i]=Object.assign({},f[i],{content:'ð¤ "'+d.transcript+'"'});break}}return f})}if(d.reply)addAI(d.reply)}catch(e){setError('Voice failed')}finally{setSending(false);stream.getTracks().forEach(function(t){t.stop()})}
       }
       mediaRef.current=rec;rec.start();setRecording(true)
     }catch(e){setError('Mic denied')}
@@ -205,7 +205,7 @@ export default function Chat({ supabase, partner }) {
 
   var onlineCount=presence.filter(function(p){return p.is_online}).length
 
-  var EMOJIS=['😊','😂','👍','❤️','🔥','✅','👌','💪','🎯','📦','💰','🏭','🤝','⚡','🇨🇳','🇪🇺','📊','💡','🚀','😅','🙏','👏','😎','🤔','💯','⭐','📸','🎉','😮','👋']
+  var EMOJIS=['ð','ð','ð','â¤ï¸','ð¥','â','ð','ðª','ð¯','ð¦','ð°','ð­','ð¤','â¡','ð¨ð³','ðªðº','ð','ð¡','ð','ð','ð','ð','ð','ð¤','ð¯','â­','ð¸','ð','ð®','ð']
 
   return (
     <div className="chat-page">
@@ -242,42 +242,42 @@ export default function Chat({ supabase, partner }) {
           </div>
           <div className="dash-card">
             <div className="dash-card-title">Canton Fair 2026</div>
-            {[{ph:'Phase 1',d:'Apr 15-19',c:'Electronics · Hardware · Lighting · Tools',col:'#e8a045'},{ph:'Phase 2',d:'Apr 23-27',c:'Home Goods · Ceramics · Furniture · Gifts',col:'#7c6af7'},{ph:'Phase 3',d:'May 1-5',c:'Fashion · Textiles · Toys · Personal Care',col:'#4ade80'}].map(function(p){return(
+            {[{ph:'Phase 1',d:'Apr 15-19',c:'Electronics Â· Hardware Â· Lighting Â· Tools',col:'#e8a045'},{ph:'Phase 2',d:'Apr 23-27',c:'Home Goods Â· Ceramics Â· Furniture Â· Gifts',col:'#7c6af7'},{ph:'Phase 3',d:'May 1-5',c:'Fashion Â· Textiles Â· Toys Â· Personal Care',col:'#4ade80'}].map(function(p){return(
               <div key={p.ph} style={{display:'flex',gap:10,padding:'8px 0',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
                 <div style={{width:3,borderRadius:2,background:p.col,flexShrink:0}}/>
-                <div><div style={{fontWeight:700,fontSize:13,color:p.col}}>{p.ph} <span style={{fontWeight:400,color:'rgba(255,255,255,0.45)'}}>· {p.d}</span></div><div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginTop:2}}>{p.c}</div></div>
+                <div><div style={{fontWeight:700,fontSize:13,color:p.col}}>{p.ph} <span style={{fontWeight:400,color:'rgba(255,255,255,0.45)'}}>Â· {p.d}</span></div><div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginTop:2}}>{p.c}</div></div>
               </div>
             )})}
           </div>
           <div className="dash-card">
             <div className="dash-card-title">Team</div>
-            {[{n:'Alexander Oslan',r:'Owner · EN'},{n:'Ina Kanaplianikava',r:'Partner · RU'},{n:'Konstantin Khoch',r:'Partner · RU'},{n:'Konstantin Ganev',r:'Partner · BG'},{n:'Slavi Mikinski',r:'Observer · BG'}].map(function(m){
+            {[{n:'Alexander Oslan',r:'Owner Â· EN'},{n:'Ina Kanaplianikava',r:'Partner Â· RU'},{n:'Konstantin Khoch',r:'Partner Â· RU'},{n:'Konstantin Ganev',r:'Partner Â· BG'},{n:'Slavi Mikinski',r:'Observer Â· BG'}].map(function(m){
               var on=presence.find(function(p){return p.is_online&&p.name&&p.name.toLowerCase().includes(m.n.split(' ')[0].toLowerCase())})
               return(<div key={m.n} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid rgba(255,255,255,0.05)'}}><Avatar name={m.n} size={30}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.n}</div><div style={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>{m.r}</div></div><div style={{width:7,height:7,borderRadius:'50%',flexShrink:0,background:on?'#4ade80':'rgba(255,255,255,0.15)',boxShadow:on?'0 0 6px #4ade80':'none'}}/></div>)
             })}
           </div>
           <div className="dash-card">
             <div className="dash-card-title">Venue</div>
-            <div className="dash-info-row"><span>📍</span><span>Pazhou Complex, No.380 Yuejiang Zhong Rd, Guangzhou</span></div>
-            <div className="dash-info-row"><span>🌦</span><span>April: 22-28°C, humid, rain — bring umbrella</span></div>
-            <div className="dash-info-row"><span>📞</span><span>CFTC: 4000-888-999 · +86-20-28-888-999</span></div>
-            <div className="dash-info-row"><span>🌐</span><span>cantonfair.org.cn · Canton Fair APP</span></div>
+            <div className="dash-info-row"><span>ð</span><span>Pazhou Complex, No.380 Yuejiang Zhong Rd, Guangzhou</span></div>
+            <div className="dash-info-row"><span>ð¦</span><span>April: 22-28Â°C, humid, rain â bring umbrella</span></div>
+            <div className="dash-info-row"><span>ð</span><span>CFTC: 4000-888-999 Â· +86-20-28-888-999</span></div>
+            <div className="dash-info-row"><span>ð</span><span>cantonfair.org.cn Â· Canton Fair APP</span></div>
           </div>
           <div className="dash-card">
             <div className="dash-card-title">Margin Target &gt;35%</div>
             <div style={{fontSize:12,color:'rgba(255,255,255,0.55)',lineHeight:1.8}}>
-              <div>Landed = buy × 1.12 (freight) × 1.035 (duty)</div>
-              <div>Net = (sell − landed − 15% fees − 10% ads) ÷ sell</div>
-              <div style={{marginTop:6,padding:'6px 10px',background:'rgba(74,222,128,0.08)',borderRadius:8,border:'1px solid rgba(74,222,128,0.2)',color:'#4ade80',fontWeight:600}}>Example: buy $4 → sell €18 → margin 51% ✅</div>
+              <div>Landed = buy Ã 1.12 (freight) Ã 1.035 (duty)</div>
+              <div>Net = (sell â landed â 15% fees â 10% ads) Ã· sell</div>
+              <div style={{marginTop:6,padding:'6px 10px',background:'rgba(74,222,128,0.08)',borderRadius:8,border:'1px solid rgba(74,222,128,0.2)',color:'#4ade80',fontWeight:600}}>Example: buy $4 â sell â¬18 â margin 51% â</div>
             </div>
           </div>
         </div>
       )}
 
       {tab==='chat' && (
-        <React.Fragment>
+        <>
           <div className="messages-list">
-            <div style={{textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.2)',padding:'6px 0'}}>"Valeran, ..." for AI · your messages on the right</div>
+            <div style={{textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.2)',padding:'6px 0'}}>"Valeran, ..." for AI Â· your messages on the right</div>
             {messages.map(function(msg){
               var mine=isMine(msg), val=isValeran(msg), name=getSender(msg)
               return(
@@ -287,19 +287,19 @@ export default function Chat({ supabase, partner }) {
                     <div className={'bubble '+(mine?'me-bubble':val?'valeran-bubble':'them-bubble')} style={{maxWidth:'78%',borderRadius:mine?'16px 4px 16px 16px':'4px 16px 16px 16px'}}>
                       {val?<ReactMarkdown>{msg.content||''}</ReactMarkdown>:<span>{msg.content}</span>}
                     </div>
-                    <button onClick={function(){setReplyTo({id:msg.id,content:msg.content,senderName:getSender(msg)});inputRef.current&&inputRef.current.focus()}} className="reply-btn" style={{background:'none',border:'none',cursor:'pointer',fontSize:13,color:'rgba(255,255,255,0)',padding:'0 2px',flexShrink:0,transition:'color .15s'}}>↩</button>
+                    <button onClick={function(){setReplyTo({id:msg.id,content:msg.content,senderName:getSender(msg)});inputRef.current&&inputRef.current.focus()}} className="reply-btn" style={{background:'none',border:'none',cursor:'pointer',fontSize:13,color:'rgba(255,255,255,0)',padding:'0 2px',flexShrink:0,transition:'color .15s'}}>â©</button>
                   </div>
                   <div style={{fontSize:10,color:'rgba(255,255,255,0.3)',marginTop:2,paddingLeft:mine?0:4,paddingRight:mine?4:0}}>{fmt(msg.created_at)}</div>
                 </div>
               )
             })}
             {sending&&(<div style={{display:'flex',flexDirection:'column',alignItems:'flex-start',marginBottom:10}}><div style={{display:'flex',alignItems:'center',gap:5,marginBottom:3,paddingLeft:4}}><SVLogo size={18}/><span style={{fontSize:11,fontWeight:600,color:'#4ade80'}}>Valeran</span></div><div className="bubble valeran-bubble typing"><span/><span/><span/></div></div>)}
-            {typing.length>0&&(<div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'rgba(255,255,255,0.4)',paddingLeft:4}}><div className="typing-dots"><span/><span/><span/></div><span>{typing.join(', ')} {typing.length===1?'is':'are'} typing…</span></div>)}
-            {error&&<div className="chat-error">⚠️ {error}</div>}
+            {typing.length>0&&(<div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'rgba(255,255,255,0.4)',paddingLeft:4}}><div className="typing-dots"><span/><span/><span/></div><span>{typing.join(', ')} {typing.length===1?'is':'are'} typingâ¦</span></div>)}
+            {error&&<div className="chat-error">â ï¸ {error}</div>}
             <div ref={bottomRef}/>
           </div>
 
-          {replyTo&&(<div style={{background:'rgba(255,255,255,0.06)',borderLeft:'3px solid #e8a045',padding:'6px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:12,color:'rgba(255,255,255,0.7)',flexShrink:0}}><div><span style={{color:'#e8a045',fontWeight:600}}>{replyTo.senderName}</span> · {replyTo.content.slice(0,55)}{replyTo.content.length>55?'...':''}</div><button onClick={function(){setReplyTo(null)}} style={{background:'none',border:'none',color:'rgba(255,255,255,0.5)',cursor:'pointer',fontSize:20,lineHeight:1,padding:'0 4px'}}>×</button></div>)}
+          {replyTo&&(<div style={{background:'rgba(255,255,255,0.06)',borderLeft:'3px solid #e8a045',padding:'6px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:12,color:'rgba(255,255,255,0.7)',flexShrink:0}}><div><span style={{color:'#e8a045',fontWeight:600}}>{replyTo.senderName}</span> Â· {replyTo.content.slice(0,55)}{replyTo.content.length>55?'...':''}</div><button onClick={function(){setReplyTo(null)}} style={{background:'none',border:'none',color:'rgba(255,255,255,0.5)',cursor:'pointer',fontSize:20,lineHeight:1,padding:'0 4px'}}>Ã</button></div>)}
           {showEmoji&&(<div style={{background:'#1a2a4a',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'10px 12px',display:'flex',flexWrap:'wrap',gap:6,maxHeight:150,overflowY:'auto',flexShrink:0}}>{EMOJIS.map(function(e2){return(<button key={e2} onClick={function(){insertEmoji(e2)}} style={{background:'none',border:'none',cursor:'pointer',fontSize:22,padding:'2px',borderRadius:4,lineHeight:1}}>{e2}</button>)})}</div>)}
 
           <div className="chat-input-bar">
@@ -307,12 +307,12 @@ export default function Chat({ supabase, partner }) {
             <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={onFile}/>
             <button className="input-action-btn" onClick={function(){fileRef.current&&fileRef.current.click()}} title="Attach"><AttachIcon/></button>
             <button className="input-action-btn" onClick={function(){cameraRef.current&&cameraRef.current.click()}} title="Camera"><CameraIcon/></button>
-            <input ref={inputRef} className="chat-input" value={input} onChange={handleInput} onKeyDown={function(e){if(e.key==='Enter'&&!e.shiftKey)sendMessage()}} placeholder='"Valeran, …" for AI · or just chat' disabled={recording}/>
-            <button className="input-action-btn" onClick={function(){setShowEmoji(function(p){return!p})}} style={{fontSize:18}} title="Emoji">😊</button>
+            <input ref={inputRef} className="chat-input" value={input} onChange={handleInput} onKeyDown={function(e){if(e.key==='Enter'&&!e.shiftKey)sendMessage()}} placeholder='"Valeran, â¦" for AI Â· or just chat' disabled={recording}/>
+            <button className="input-action-btn" onClick={function(){setShowEmoji(function(p){return!p})}} style={{fontSize:18}} title="Emoji">ð</button>
             <button className={'input-action-btn mic-btn '+(recording?'recording':'')} onMouseDown={startRec} onMouseUp={stopRec} onTouchStart={function(e){e.preventDefault();startRec()}} onTouchEnd={function(e){e.preventDefault();stopRec()}} title="Hold to record"><MicIcon/></button>
             {input.trim()&&<button className="send-btn" onClick={sendMessage} disabled={sending}><SendIcon/></button>}
           </div>
-        </React.Fragment>
+        </>
       )}
     </div>
   )
