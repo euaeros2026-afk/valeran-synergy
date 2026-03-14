@@ -73,7 +73,7 @@ export default function Chat({ supabase, partner }) {
           return prev.concat([m])
         })
       })
-      .subscribe()
+      .subscribe(function(status) { if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { setTimeout(function() { loadMessages(); }, 3000); } })
 
     var bCh = supabase.channel('typing_sv_v3', { config: { broadcast: { self: false } } })
       .on('broadcast', { event: 'typing' }, function(payload) {
@@ -91,8 +91,9 @@ export default function Chat({ supabase, partner }) {
     bcastRef.current = bCh
 
     window.addEventListener('beforeunload', markOffline)
+    var pollInterval = setInterval(function() { loadMessages(); }, 45000);
     return function() {
-      clearInterval(pingRef.current)
+      clearInterval(pingRef.current); clearInterval(pollInterval);
       supabase.removeChannel(ch)
       supabase.removeChannel(bCh)
       window.removeEventListener('beforeunload', markOffline)
