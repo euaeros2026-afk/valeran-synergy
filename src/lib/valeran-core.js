@@ -1,459 +1,310 @@
 // ============================================================
-// VALERAN AI CORE
-// The brain. Processes every message, decides when to respond,
-// extracts structured data, generates reports.
+// VALERAN AI CORE — Fixed version
+// Key fixes:
+//   1. Uses Haiku (fast, <4s) not Sonnet (slow, 15-30s)
+//   2. Table names fixed: partner_profiles, chat_messages
+//   3. Single AI call for active responses (no chained calls)
+//   4. Entity extraction is fire-and-forget (non-blocking)
+//   5. processMessage is now a simple, fast, reliable function
 // ============================================================
-
-const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
-// ============================================================
-// VALERAN SYSTEM PROMPT
-// ============================================================
-const VALERAN_SYSTEM = `You are Valeran, the AI assistant for Synergy Ventures — a Dubai-registered company founded by partners sourcing products from China to sell in the EU via Shopify.
-
-Your team is attending the Canton Fair in Guangzhou, China. Your role has two modes:
-
-## SILENT MODE (default)
-When your name is NOT mentioned, you silently process every message and:
-- Extract any supplier information (company, hall, booth, contact)
-- Extract any product information (name, price, MOQ, specs)
-- Extract any meeting commitments or schedule items
-- Tag the message with relevant categories
-- Store everything in the database
-- NEVER respond in silent mode — just process and store
-
-## ACTIVE MODE  
-When someone says "Valeran" in their message, you respond helpfully.
-You also act as a general assistant for any question outside Synergy Ventures scope.
-
-## TEAM
-- Partners speak English, Russian, and Bulgarian
-- One remote partner (observer) needs everything in Bulgarian
-- Always detect the language of the input and respond in the same language
-- For reports, generate English + Bulgarian versions
-
-## CORE BUSINESS LOGIC
-You understand the dual-stream product discovery system:
-- EU side: Amazon DE/UK/FR, eMAG, eBay Europe — demand validation
-- China side: 1688, Alibaba, AliPrice — supply validation
-- Decision engine: 5-dimension scoring (category attractiveness, product demand, competition difficulty, sourcing feasibility, margin quality) — each scored 1-5
-
-## CANTON FAIR PHASES
-- Phase 1 (Apr 15-19): Electronics, machinery, lighting, hardware, tools
-- Phase 2 (Apr 23-27): Home goods, ceramics, furniture, gifts, garden
-- Phase 3 (May 1-5): Fashion, textiles, toys, personal care, food
-
-## PRODUCT CATEGORY AUTO-ASSIGNMENT
-When a product is mentioned, automatically assign it to the closest Canton Fair section.
-If nothing fits, suggest a new category name.
-
-## RESPONSE STYLE
-- Concise and professional
-- Use data tables when presenting product comparisons
-- Flag important insights (good margin, EU compliance issues, strong competition)
-- In Bulgarian for the remote partner
-- Never be verbose — your team is busy at a trade fair`;
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+const FAST_MODEL    = 'claude-haiku-4-5-20251001'; // ~2-4s
+const SMART_MODEL   = 'claude-haiku-4-5-20251001'; // keep Haiku throughout for Vercel Hobby
 
 // ============================================================
-// DETECT IF VALERAN IS CALLED
+// ANTHROPIC CALL HELPER
 // ============================================================
-function isValeranCalled(text) {
-  const triggers = ['valeran', 'valera', 'валеран', 'валера'];
-  const lower = text.toLowerCase();
-  return triggers.some(t => lower.includes(t));
-}
-
-// ============================================================
-// EXTRACT ENTITIES FROM MESSAGE
-// Runs silently on every message
-// ============================================================
-async function extractEntities(message, partnerId, sessionId) {
-  const extractPrompt = `Extract structured data from this message from a Canton Fair attendee.
-Return ONLY valid JSON, nothing else.
-
-Message: "${message}"
-
-Return this exact structure (use null for missing fields):
-{
-  "has_supplier": boolean,
-  "has_product": boolean,
-  "has_meeting": boolean,
-  "supplier": {
-    "company_name": string|null,
-    "hall": string|null,
-    "booth_number": string|null,
-    "contact_name": string|null,
-    "contact_phone": string|null,
-    "contact_wechat": string|null,
-    "oem_available": boolean|null,
-    "odm_available": boolean|null,
-    "notes": string|null
-  },
-  "product": {
-    "product_name": string|null,
-    "category_suggestion": string|null,
-    "exworks_price_cny": number|null,
-    "exworks_price_usd": number|null,
-    "moq_standard": number|null,
-    "key_features": string[]|null,
-    "materials": string|null,
-    "notes": string|null
-  },
-  "meeting": {
-    "title": string|null,
-    "meeting_date": string|null,
-    "meeting_time": string|null,
-    "location": string|null,
-    "contact_name": string|null,
-    "agenda": string|null
-  },
-  "tags": string[],
-  "language": "en"|"ru"|"bg"
-}`;
-
+async function callAI(messages, system, maxTokens = 600, timeoutMs = 22000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      messages: [{ role: 'user', content: extractPrompt }]
+    const body = { model: FAST_MODEL, max_tokens: maxTokens, messages };
+    if (system) body.system = system;
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify(body),
+      signal: ctrl.signal
     });
-
-    const text = response.content[0].text.trim();
-    const clean = text.replace(/```json|```/g, '').trim();
-    return JSON.parse(clean);
+    clearTimeout(timer);
+    const d = await r.json();
+    return d?.content?.[0]?.text || null;
   } catch (e) {
-    console.error('Entity extraction failed:', e);
+    clearTimeout(timer);
+    if (e.name === 'AbortError') return null;
+    console.error('AI call error:', e.message);
     return null;
   }
 }
 
 // ============================================================
-// SAVE EXTRACTED ENTITIES TO DATABASE
+// VALERAN SYSTEM PROMPT
 // ============================================================
-async function saveEntities(extracted, partnerId, sessionId, messageId) {
-  if (!extracted) return {};
-  const result = {};
+const VALERAN_SYSTEM = `You are Valeran, the AI field intelligence assistant for Synergy Ventures at Canton Fair 2026 in Guangzhou, China. Synergy Ventures is a Dubai-registered company that sources products from Chinese manufacturers to sell in the EU.
 
-  // Save supplier
-  if (extracted.has_supplier && extracted.supplier?.company_name) {
-    const { data: supplier } = await supabase
-      .from('suppliers')
-      .upsert({
-        ...extracted.supplier,
-        logged_by: partnerId,
-        fair_session_id: sessionId
-      }, { onConflict: 'company_name,hall,booth_number', ignoreDuplicates: false })
-      .select()
-      .single();
+YOUR ROLE:
+- Help the team research products, suppliers, and margins
+- Calculate landed costs and EU margin estimates
+- Provide market intelligence (EU demand + China supply)
+- Be a practical, concise assistant — the team is busy on the fair floor
 
-    if (supplier) result.supplier_id = supplier.id;
-  }
+TEAM LANGUAGES: English, Russian, Bulgarian — always detect and match the input language.
 
-  // Save product
-  if (extracted.has_product && extracted.product?.product_name) {
-    // Auto-assign category
-    const category = await autoAssignCategory(extracted.product);
+CANTON FAIR PHASES:
+- Phase 1 (Apr 15-19): Electronics, lighting, hardware, tools, machinery
+- Phase 2 (Apr 23-27): Home goods, ceramics, furniture, gifts, garden
+- Phase 3 (May 1-5): Fashion, textiles, toys, personal care, food
 
-    const { data: product } = await supabase
-      .from('products')
-      .insert({
-        ...extracted.product,
-        category_auto: extracted.product.category_suggestion,
-        category_id: category?.id,
-        supplier_id: result.supplier_id || null,
-        logged_by: partnerId,
-        fair_session_id: sessionId,
-        status: 'reviewing'
-      })
-      .select()
-      .single();
+MARGIN CALCULATION FORMULA:
+Landed cost = factory price × 1.13 (shipping ~8%, duty ~5%) + VAT depends on EU country
+EU margin % = (sell price - landed cost - marketplace fees - ads) / sell price × 100
+Target: >35% gross margin after all costs
 
-    if (product) result.product_id = product.id;
-  }
+PRODUCT SCORING (1-5 each dimension):
+- Category attractiveness (EU market size & growth)
+- Product demand (search volume, marketplace sales)
+- Competition difficulty (brand dominance, review barriers)
+- Sourcing feasibility (MOQ, quality, lead time)
+- Margin quality (after all costs)
 
-  // Save meeting
-  if (extracted.has_meeting && extracted.meeting?.title) {
-    const { data: meeting } = await supabase
-      .from('meetings')
-      .insert({
-        ...extracted.meeting,
-        supplier_id: result.supplier_id || null,
+RESPONSE STYLE:
+- Be concise and practical — use bullet points and tables
+- Max 250 words unless a report is requested
+- Flag important insights: ✅ good margin, ⚠️ compliance risk, ❌ too competitive
+- For margin questions, always show the calculation breakdown`;
+
+// ============================================================
+// DETECT IF VALERAN IS CALLED
+// ============================================================
+function isValeranCalled(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return ['valeran', 'valera', 'валеран', 'валера'].some(t => lower.includes(t));
+}
+
+// ============================================================
+// EXTRACT ENTITIES — fire-and-forget background task
+// ============================================================
+async function extractAndSaveEntities(text, partnerId, sessionId) {
+  try {
+    const prompt = `Extract structured data from this message from a Canton Fair attendee.
+Return ONLY valid JSON, nothing else. If a field has no data, use null.
+
+Message: "${text.slice(0, 500)}"
+
+Return:
+{
+  "has_supplier": boolean,
+  "has_product": boolean,
+  "supplier": { "name": null, "hall": null, "booth": null, "contact": null, "wechat": null },
+  "product": { "name": null, "price_usd": null, "price_cny": null, "moq": null, "notes": null },
+  "tags": [],
+  "language": "en"
+}`;
+
+    const raw = await callAI([{ role: 'user', content: prompt }], null, 400, 12000);
+    if (!raw) return;
+    const data = JSON.parse(raw.replace(/```json|```/g, '').trim());
+
+    // Save supplier if found
+    if (data.has_supplier && data.supplier?.name) {
+      await supabase.from('suppliers').upsert({
+        name: data.supplier.name,
+        hall: data.supplier.hall,
+        booth_number: data.supplier.booth,
+        contact_person: data.supplier.contact,
+        wechat: data.supplier.wechat,
+        session_id: sessionId,
         created_by: partnerId
-      })
-      .select()
-      .single();
+      }, { onConflict: 'name' });
+    }
 
-    if (meeting) result.meeting_id = meeting.id;
+    // Save product if found
+    if (data.has_product && data.product?.name) {
+      await supabase.from('products').insert({
+        name: data.product.name,
+        buy_price_usd: data.product.price_usd,
+        notes: data.product.notes,
+        session_id: sessionId,
+        created_by: partnerId
+      });
+    }
+  } catch (e) {
+    console.error('Entity extraction failed (non-blocking):', e.message);
   }
-
-  return result;
 }
 
 // ============================================================
-// AUTO-ASSIGN CATEGORY
+// GET RECENT CHAT HISTORY
 // ============================================================
-async function autoAssignCategory(product) {
-  // Get existing categories
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('id, name, canton_fair_section');
-
-  const catList = categories?.map(c => c.name).join(', ') || '';
-
-  const prompt = `Given this product: "${product.product_name}" (${product.notes || ''}),
-assign it to the most appropriate category from this list: ${catList}
-If none fit well, suggest a new category name.
-Return ONLY JSON: {"category_name": "...", "is_new": boolean}`;
-
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 100,
-    messages: [{ role: 'user', content: prompt }]
-  });
-
-  const text = response.content[0].text.replace(/```json|```/g, '').trim();
-  const result = JSON.parse(text);
-
-  if (result.is_new) {
-    const { data: newCat } = await supabase
-      .from('categories')
-      .insert({ name: result.category_name, created_by: 'valeran_auto' })
-      .select().single();
-    return newCat;
+async function getChatHistory(sessionId, limit = 10) {
+  try {
+    const { data } = await supabase
+      .from('chat_messages')
+      .select('role, content')
+      .eq('session_id', sessionId)
+      .neq('content', '__VALERAN_WELCOME_SENT__')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    return (data || []).reverse();
+  } catch (e) {
+    return [];
   }
-
-  const match = categories?.find(c => c.name === result.category_name);
-  return match || null;
 }
 
 // ============================================================
-// PROCESS INCOMING MESSAGE (main entry point)
+// PROCESS MESSAGE — main entry point
+// Fast path: direct AI call + save. Entity extraction is async background.
 // ============================================================
 async function processMessage({ text, partnerId, sessionId, messageType = 'text', mediaUrl = null }) {
-  // Get partner info
-  const { data: partner } = await supabase
-    .from('partners')
-    .select('*')
-    .eq('id', partnerId)
-    .single();
+  if (!text) return { responded: false };
 
   const triggered = isValeranCalled(text);
 
-  // Always extract entities silently
-  const extracted = await extractEntities(text, partnerId, sessionId);
-
-  // Save message to DB
-  const { data: savedMessage } = await supabase
-    .from('messages')
-    .insert({
-      sender_id: partnerId,
-      sender_type: 'partner',
-      content: text,
-      message_type: messageType,
-      media_url: mediaUrl,
-      tags: extracted?.tags || [],
-      valeran_triggered: triggered,
-      fair_session_id: sessionId
-    })
-    .select().single();
-
-  // Save extracted entities
-  const entityRefs = await saveEntities(extracted, partnerId, sessionId, savedMessage?.id);
-
-  // Update message with entity references
-  if (savedMessage && (entityRefs.supplier_id || entityRefs.product_id || entityRefs.meeting_id)) {
-    await supabase.from('messages').update(entityRefs).eq('id', savedMessage.id);
+  // Save incoming message
+  try {
+    await supabase.from('chat_messages').insert({
+      session_id: sessionId || 'default',
+      partner_id: partnerId || null,
+      role: 'user',
+      content: text
+    });
+  } catch (e) {
+    console.error('Save message error:', e.message);
   }
 
-  // If not triggered, return silent acknowledgment
+  // Always extract entities in background (non-blocking)
+  if (partnerId && sessionId) {
+    extractAndSaveEntities(text, partnerId, sessionId).catch(() => {});
+  }
+
   if (!triggered) {
-    return { responded: false, extracted, entityRefs };
+    return { responded: false, silent: true };
   }
 
-  // Build conversation context
-  const { data: recentMessages } = await supabase
-    .from('messages')
-    .select('sender_type, content, created_at')
-    .eq('fair_session_id', sessionId)
-    .order('created_at', { ascending: false })
-    .limit(20);
+  // Get conversation history for context
+  const history = await getChatHistory(sessionId || 'default');
 
-  const history = (recentMessages || []).reverse().map(m => ({
-    role: m.sender_type === 'partner' ? 'user' : 'assistant',
-    content: m.content
-  }));
+  // Build messages array with history
+  const query = text.replace(/^valeran[,\s]*/i, '').trim() || text;
+  const messages = [
+    ...history.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
+    { role: 'user', content: query }
+  ];
 
-  // Get today's stats for context
-  const today = new Date().toISOString().split('T')[0];
-  const { count: todayProducts } = await supabase
-    .from('products')
-    .select('*', { count: 'exact', head: true })
-    .gte('created_at', today);
+  // Get AI response
+  const reply = await callAI(messages, VALERAN_SYSTEM, 600, 22000)
+    || 'Sorry, I could not process that right now. Please try again.';
 
-  const contextNote = `[Context: ${todayProducts || 0} products logged today. Partner: ${partner?.full_name}. Language preference: ${partner?.preferred_language || 'en'}]`;
+  // Save assistant response
+  try {
+    await supabase.from('chat_messages').insert({
+      session_id: sessionId || 'default',
+      partner_id: null,
+      role: 'assistant',
+      content: reply
+    });
+  } catch (e) {
+    console.error('Save reply error:', e.message);
+  }
 
-  // Generate Valeran response
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 1000,
-    system: VALERAN_SYSTEM + '\n\n' + contextNote,
-    messages: [
-      ...history,
-      { role: 'user', content: text }
-    ]
-  });
-
-  const valeranReply = response.content[0].text;
-
-  // Save Valeran's response
-  const { data: valeranMessage } = await supabase
-    .from('messages')
-    .insert({
-      sender_type: 'valeran',
-      content: valeranReply,
-      message_type: 'text',
-      valeran_triggered: true,
-      fair_session_id: sessionId
-    })
-    .select().single();
-
-  return {
-    responded: true,
-    reply: valeranReply,
-    extracted,
-    entityRefs,
-    messageId: valeranMessage?.id
-  };
+  return { responded: true, reply };
 }
 
 // ============================================================
 // GENERATE EVENING REPORT
 // ============================================================
 async function generateEveningReport(sessionId, date) {
-  const { data: session } = await supabase.from('fair_sessions').select('*').eq('id', sessionId).single();
-  const { data: todayProducts } = await supabase.from('products').select('*, suppliers(company_name, hall, booth_number)').eq('fair_session_id', sessionId).gte('created_at', date).order('total_score', { ascending: false });
-  const { data: todayMessages } = await supabase.from('messages').select('*, partners(full_name)').eq('fair_session_id', sessionId).gte('created_at', date);
-  const { data: tomorrowMeetings } = await supabase.from('meetings').select('*, suppliers(company_name)').eq('meeting_date', getTomorrow(date)).order('meeting_time');
+  const { data: products } = await supabase
+    .from('products')
+    .select('name, buy_price_usd, sell_price_eur, margin_pct, notes')
+    .eq('session_id', sessionId)
+    .gte('created_at', date)
+    .order('margin_pct', { ascending: false })
+    .limit(10);
+
+  const { data: meetings } = await supabase
+    .from('meetings')
+    .select('supplier_id, scheduled_at, notes')
+    .gte('scheduled_at', date)
+    .limit(10);
 
   const stats = {
-    products_logged: todayProducts?.length || 0,
-    suppliers_met: new Set(todayProducts?.map(p => p.supplier_id).filter(Boolean)).size,
-    messages_sent: todayMessages?.length || 0,
-    meetings_tomorrow: tomorrowMeetings?.length || 0
+    products_logged: products?.length || 0,
+    meetings_tomorrow: meetings?.length || 0,
+    date
   };
 
-  const reportPrompt = `Generate a structured evening report for the Synergy Ventures team at Canton Fair.
-
+  const prompt = `Generate a concise evening report for the Synergy Ventures team at Canton Fair.
 Date: ${date}
-Phase: ${session?.phase_number} - ${session?.name}
+Products logged today (${stats.products_logged}): ${JSON.stringify(products?.slice(0,5))}
+Tomorrow's meetings (${stats.meetings_tomorrow}): ${JSON.stringify(meetings?.slice(0,5))}
 
-Stats: ${JSON.stringify(stats)}
+Include: day summary, top 3 products with highlights, tomorrow's schedule, key action items.
+Be direct and scannable — the team is tired. Max 400 words.`;
 
-Products logged today: ${JSON.stringify(todayProducts?.slice(0, 10))}
+  const contentEn = await callAI([{ role: 'user', content: prompt }], null, 800, 25000)
+    || 'Evening report generation failed.';
 
-Meetings tomorrow: ${JSON.stringify(tomorrowMeetings)}
+  const bgPrompt = `Translate to Bulgarian (keep emojis and formatting):\n\n${contentEn}`;
+  const contentBg = await callAI([{ role: 'user', content: bgPrompt }], null, 800, 20000) || '';
 
-Generate a concise, structured report covering:
-1. Day summary (key numbers)
-2. Top products found today with scores and margin highlights
-3. Notable supplier observations
-4. Tomorrow's schedule and recommended talking points for each meeting
-5. Action items
-
-Write in a professional but direct tone. The team is tired after a long day — be clear and scannable.`;
-
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 2000,
-    messages: [{ role: 'user', content: reportPrompt }]
-  });
-
-  const reportEn = response.content[0].text;
-
-  // Translate to Bulgarian for remote partner
-  const bgResponse = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 2000,
-    messages: [{ role: 'user', content: `Translate this report to Bulgarian:\n\n${reportEn}` }]
-  });
-  const reportBg = bgResponse.content[0].text;
-
-  // Save report
   const { data: report } = await supabase.from('reports').insert({
-    report_type: 'evening',
-    fair_session_id: sessionId,
-    report_date: date,
-    title: `Evening Report · ${date} · Phase ${session?.phase_number}`,
-    content_en: reportEn,
-    content_bg: reportBg,
-    stats,
-    top_products: todayProducts?.slice(0, 5),
-    meetings_tomorrow: tomorrowMeetings
+    type: 'evening',
+    session_id: sessionId,
+    content: JSON.stringify({ en: contentEn, bg: contentBg, stats }),
+    created_at: new Date().toISOString()
   }).select().single();
 
-  return report;
+  return { ...report, title: `Evening Report · ${date}`, content_en: contentEn, content_bg: contentBg };
 }
 
 // ============================================================
 // GENERATE MORNING REPORT
 // ============================================================
 async function generateMorningReport(sessionId, date) {
-  const { data: session } = await supabase.from('fair_sessions').select('*').eq('id', sessionId).single();
-  const { data: shortlisted } = await supabase.from('products').select('*, suppliers(company_name, contact_name, hall, booth_number)').eq('fair_session_id', sessionId).in('status', ['reviewing', 'shortlisted']).order('total_score', { ascending: false }).limit(15);
-  const { data: todayMeetings } = await supabase.from('meetings').select('*, suppliers(company_name, contact_name, contact_phone)').eq('meeting_date', date).order('meeting_time');
+  const { data: shortlisted } = await supabase
+    .from('products')
+    .select('name, buy_price_usd, sell_price_eur, margin_pct, notes')
+    .eq('session_id', sessionId)
+    .order('margin_pct', { ascending: false })
+    .limit(8);
 
-  const reportPrompt = `Generate a morning briefing for the Synergy Ventures team before they go to Canton Fair today.
+  const { data: meetings } = await supabase
+    .from('meetings')
+    .select('scheduled_at, notes')
+    .gte('scheduled_at', date)
+    .limit(5);
 
-Date: ${date} (Phase ${session?.phase_number})
+  const prompt = `Generate a morning briefing for the Synergy Ventures team at Canton Fair.
+Date: ${date}
+Top products to follow up: ${JSON.stringify(shortlisted?.slice(0,5))}
+Today's meetings: ${JSON.stringify(meetings)}
 
-Products to evaluate further today: ${JSON.stringify(shortlisted?.slice(0, 8))}
+Include: priority follow-ups with specific questions to ask, today's meeting prep, recommended areas to explore.
+Be actionable — the team reads this over breakfast. Max 350 words.`;
 
-Today's scheduled meetings: ${JSON.stringify(todayMeetings)}
+  const contentEn = await callAI([{ role: 'user', content: prompt }], null, 800, 25000)
+    || 'Morning report generation failed.';
 
-Generate:
-1. Priority products to follow up on today — with specific questions to ask suppliers based on review insights
-2. Today's meeting agenda — with preparation notes for each meeting
-3. Categories to focus on today (based on scoring so far)
-4. Recommended new areas to explore
-5. One key insight from overnight market intelligence
-
-Be specific and actionable. The team reads this over breakfast.`;
-
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 2000,
-    messages: [{ role: 'user', content: reportPrompt }]
-  });
-
-  const reportEn = response.content[0].text;
-
-  const bgResponse = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 2000,
-    messages: [{ role: 'user', content: `Translate this to Bulgarian:\n\n${reportEn}` }]
-  });
+  const bgPrompt = `Translate to Bulgarian (keep emojis and formatting):\n\n${contentEn}`;
+  const contentBg = await callAI([{ role: 'user', content: bgPrompt }], null, 800, 20000) || '';
 
   const { data: report } = await supabase.from('reports').insert({
-    report_type: 'morning',
-    fair_session_id: sessionId,
-    report_date: date,
-    title: `Morning Briefing · ${date} · Phase ${session?.phase_number}`,
-    content_en: reportEn,
-    content_bg: bgResponse.content[0].text,
-    meetings_tomorrow: todayMeetings
+    type: 'morning',
+    session_id: sessionId,
+    content: JSON.stringify({ en: contentEn, bg: contentBg }),
+    created_at: new Date().toISOString()
   }).select().single();
 
-  return report;
+  return { ...report, title: `Morning Briefing · ${date}`, content_en: contentEn, content_bg: contentBg };
 }
 
-function getTomorrow(dateStr) {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split('T')[0];
-}
-
-module.exports = { processMessage, generateEveningReport, generateMorningReport, isValeranCalled };
+module.exports = { processMessage, generateEveningReport, generateMorningReport, isValeranCalled, callAI };
