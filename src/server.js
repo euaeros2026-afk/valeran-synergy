@@ -44,7 +44,7 @@ app.post('/api/chat/message', requireAuth, async function(req, res) {
   try {
     var result = await core.processMessage({ text: req.body.text, partnerId: req.partner && req.partner.id, sessionId: sid });
     res.json({ reply: result.reply || 'Noted.', session_id: sid, responded: result.responded });
-  } catch(e) { res.json({ reply: 'Error â try again.', session_id: sid }); }
+  } catch(e) { res.json({ reply: 'Error Ã¢ÂÂ try again.', session_id: sid }); }
 });
 
 app.get('/api/chat/messages', requireAuth, async function(req, res) {
@@ -213,7 +213,7 @@ var TG_SYSTEM = 'You are Valeran, AI assistant for Synergy Ventures at Canton Fa
   'Team: Alexander (EN), Ina (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi (BG). ' +
   'LANGUAGE: reply in exact same language as the message. BG=BG, RU=RU, EN=EN. Never mix. ' +
   'STYLE: short and direct. 1-3 sentences for simple questions. No fluff. ' +
-  'Use [Context:...] when present â that is what someone replied to.';
+  'Use [Context:...] when present Ã¢ÂÂ that is what someone replied to.';
 
 async function tgSend(chatId, text, replyToId) {
   var body = { chat_id: chatId, text: text.slice(0, 4000) };
@@ -226,8 +226,8 @@ async function tgSend(chatId, text, replyToId) {
 // ---- TELEGRAM WEBHOOK ----
 // CRITICAL: ALL work happens BEFORE res.sendStatus(200).
 // Vercel kills async code after res.send().
-// For documents: takes 10-20s â Telegram retries after 5s (harmless).
-// For text: takes 3-5s â within Telegram's window.
+// For documents: takes 10-20s Ã¢ÂÂ Telegram retries after 5s (harmless).
+// For text: takes 3-5s Ã¢ÂÂ within Telegram's window.
 
 app.post('/api/telegram/webhook', async function(req, res) {
   var body = req.body || {};
@@ -245,73 +245,124 @@ app.post('/api/telegram/webhook', async function(req, res) {
     var cap   = (msg.caption && msg.caption.trim()) || '';
 
     try {
-      // Step 1: get Telegram file path
+      // Get Telegram file path
       var fi = await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/getFile?file_id=' + doc.file_id);
       var fd = await fi.json();
-      if (!fd.ok) throw new Error('Cannot get file: ' + JSON.stringify(fd));
+      if (!fd.ok) throw new Error('Cannot get file from Telegram');
 
-      // Step 2: download file
+      // Download file
       var fileURL = 'https://api.telegram.org/file/bot' + process.env.TELEGRAM_BOT_TOKEN + '/' + fd.result.file_path;
       var ctrl = new AbortController();
       setTimeout(function() { ctrl.abort(); }, 20000);
       var fileResp = await fetch(fileURL, { signal: ctrl.signal });
-      if (!fileResp.ok) throw new Error('Download failed ' + fileResp.status);
+      if (!fileResp.ok) throw new Error('Download failed');
       var buffer = Buffer.from(await fileResp.arrayBuffer());
+      var b64 = buffer.toString('base64');
+      var isPDF = fname.toLowerCase().endsWith('.pdf') || doc.mime_type === 'application/pdf';
 
-      // Step 3: extract text or use Claude PDF vision
+      var summary = '';
+      var method  = '';
+
+      // ---- LEVEL 1: Try direct text extraction ----
       var fileText = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
       var readableChars = (fileText.match(/[a-zA-Z0-9\u0400-\u04FF]/g) || []).length;
-      var isPDF = fname.toLowerCase().endsWith('.pdf') || doc.mime_type === 'application/pdf';
-      var summary = '';
 
       if (readableChars > 300) {
-        // Text-based file â read directly
-        var prompt = 'Analyse this document briefly. What is it about (1 sentence)? List key facts, dates, locations, rules (bullets). Any actions needed? Document: ' + fileText.slice(0, 5000);
-        summary = await core.callAI([{ role: 'user', content: prompt }], TG_SYSTEM, 600, 25000);
-      } else if (isPDF) {
-        // Binary PDF â send to Claude as document
-        var b64 = buffer.toString('base64');
+        method = 'text (Haiku)';
+        var prompt = 'Analyse this document. What is it about (1 sentence)? Key facts, dates, locations, rules, requirements (bullet list). Any actions needed? Document: ' + fileText.slice(0, 5000);
+        summary = await core.callAI([{ role: 'user', content: prompt }], TG_SYSTEM, 700, 25000);
+      }
+
+      // ---- LEVEL 2: Claude Sonnet PDF vision (handles scanned PDFs as images) ----
+      if (!summary && isPDF) {
+        method = 'PDF vision (Sonnet)';
         var ctrl2 = new AbortController();
-        setTimeout(function() { ctrl2.abort(); }, 25000);
-        var r2 = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 800,
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
-                { type: 'text', text: 'This is a document sent by our trade fair team. Read it fully and provide: 1) What it is (1 sentence). 2) All key facts, dates, locations, rules, requirements (bullet list). 3) Any action items for the team. Be thorough — this will be saved as reference.' + (cap ? ' Sender note: ' + cap : '') }
-              ]
-            }]
-          }),
-          signal: ctrl2.signal
-        });
-        var r2d = await r2.json();
-        summary = r2d.content && r2d.content[0] && r2d.content[0].text || '';
+        setTimeout(function() { ctrl2.abort(); }, 40000);
+        try {
+          var r2 = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 1000,
+              messages: [{
+                role: 'user',
+                content: [
+                  { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+                  { type: 'text', text: 'Read this document fully. Provide: 1) What it is (1 sentence). 2) All key facts, dates, locations, rules, requirements (bullet list). 3) Action items for the team. Be thorough.' + (cap ? ' Sender note: ' + cap : '') }
+                ]
+              }]
+            }),
+            signal: ctrl2.signal
+          });
+          var r2d = await r2.json();
+          summary = r2d.content && r2d.content[0] && r2d.content[0].text || '';
+          if (summary && summary.length < 50) summary = ''; // too short = failed
+        } catch(e2) { console.error('[PDF Sonnet]', e2.message); }
       }
 
+      // ---- LEVEL 3: Google Vision OCR (last resort for image PDFs) ----
+      if (!summary && isPDF && process.env.GOOGLE_API_KEY) {
+        method = 'OCR (Google Vision)';
+        try {
+          // Google Vision can OCR a PDF stored in GCS, but we can also send as base64 image
+          // We'll send the raw PDF bytes asking for DOCUMENT_TEXT_DETECTION
+          var visionR = await fetch('https://vision.googleapis.com/v1/files:asyncBatchAnnotate?key=' + process.env.GOOGLE_API_KEY, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requests: [{
+                inputConfig: { content: b64, mimeType: 'application/pdf' },
+                features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+                outputConfig: { gcsDestination: { uri: 'gs://not-used' }, batchSize: 1 }
+              }]
+            })
+          });
+          // Sync fallback: try Vision API with the first chunk as an image annotation
+          var visionR2 = await fetch('https://vision.googleapis.com/v1/images:annotate?key=' + process.env.GOOGLE_API_KEY, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requests: [{
+                image: { content: b64.slice(0, 4000000) }, // Vision limit ~4MB
+                features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }]
+              }]
+            })
+          });
+          var vd = await visionR2.json();
+          var ocrText = vd.responses && vd.responses[0] && vd.responses[0].fullTextAnnotation && vd.responses[0].fullTextAnnotation.text || '';
+          if (ocrText && ocrText.length > 100) {
+            var ocrPrompt = 'Analyse this text extracted via OCR from a document. What is it about (1 sentence)? Key facts, dates, locations, rules (bullets). Actions needed? Text: ' + ocrText.slice(0, 5000);
+            summary = await core.callAI([{ role: 'user', content: ocrPrompt }], TG_SYSTEM, 700, 20000);
+          }
+        } catch(e3) { console.error('[PDF OCR]', e3.message); }
+      }
+
+      // ---- FALLBACK: save with caption, ask for text version ----
       if (!summary) {
-        summary = 'Saved "' + fname + '".' + (cap ? ' Your note: ' + cap + '.' : '') + ' Could not read the content â it may be a scanned image PDF. Try sending as .txt or paste the key info directly.';
+        method = 'fallback';
+        summary = 'Saved "' + fname + '" ✓' +
+          (cap ? '\nYour note: ' + cap : '') +
+          '\n\nThis PDF contains only scanned images — no readable text layer. To make it work:\n' +
+          '1. Open on PC → upload to Google Drive → right-click → Open with Google Docs (auto-OCR)\n' +
+          '2. Download as .txt → send me that file\n' +
+          'Or just tell me the key info in a message and I will remember it.';
       }
 
-      // Step 4: save to memory so Valeran can reference it
-      var memEntry = 'Document "' + fname + '" from ' + from + '. ' + (cap ? 'Note: ' + cap + '. ' : '') + 'Content: ' + summary.slice(0, 800);
-      await core.saveCorrection(memEntry, null, 'doc_' + fname.replace(/[^a-z0-9]/gi, '_').slice(0, 40));
+      // Save to memory (always, regardless of method)
+      var memContent = 'Document "' + fname + '" from ' + from + (cap ? '. Note: ' + cap : '') + '. Read via: ' + method + '. Summary: ' + summary.slice(0, 900);
+      await core.saveCorrection(memContent, null, 'doc_' + fname.replace(/[^a-z0-9]/gi, '_').slice(0, 40));
+      await supabase.from('catalogue_uploads').insert({ filename: fname, session_id: sid, analysis_status: method !== 'fallback' ? 'done' : 'failed', products_extracted: 0, summary: summary.slice(0, 2000), raw_analysis: { caption: cap, from: from, method: method, size: doc.file_size } });
 
-      // Step 5: save to catalogue_uploads
-      await supabase.from('catalogue_uploads').insert({ filename: fname, session_id: sid, analysis_status: 'done', products_extracted: 0, summary: summary.slice(0, 2000), raw_analysis: { caption: cap, from: from, size: doc.file_size } });
-
-      // Step 6: reply with summary
-      await tgSend(chatId, summary, msg.message_id);
-      await core.saveMessage(sid, 'user', from + ' sent file: ' + fname, null, 'telegram', from);
-      await core.saveMessage(sid, 'assistant', summary, null, 'telegram', 'Valeran');
+      var reply = summary.slice(0, 3900);
+      if (method && method !== 'fallback') reply = reply + '\n\n_(' + method + ')_';
+      await tgSend(chatId, reply, msg.message_id);
+      await core.saveMessage(sid, 'user', from + ' sent: ' + fname, null, 'telegram', from);
+      await core.saveMessage(sid, 'assistant', reply, null, 'telegram', 'Valeran');
 
     } catch(e) {
       console.error('[TG doc]', e.message);
-      await tgSend(chatId, 'Could not read "' + fname + '": ' + e.message + '. Try a .txt file or paste the key text directly.', msg.message_id);
+      await tgSend(chatId, 'Could not process "' + fname + '": ' + e.message, msg.message_id);
     }
 
     res.sendStatus(200);
@@ -337,7 +388,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
   if (msg.reply_to_message && msg.reply_to_message.text) {
     var rFrom = (msg.reply_to_message.from && msg.reply_to_message.from.first_name) || 'someone';
     var isBot = !!(msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
-    var ctx = isBot ? '[Context â you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context â ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
+    var ctx = isBot ? '[Context Ã¢ÂÂ you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context Ã¢ÂÂ ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
     query = ctx + '\n' + from + ' asks: ' + query;
   }
 
