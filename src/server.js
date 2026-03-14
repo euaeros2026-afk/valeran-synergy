@@ -45,7 +45,7 @@ app.post('/api/chat/message', requireAuth, async function(req, res) {
   try {
     var result = await processMessage({ text: req.body.text, partnerId: req.partner && req.partner.id, sessionId: sid });
     res.json({ reply: result.reply || 'Message noted.', session_id: sid, responded: result.responded });
-  } catch(e) { res.json({ reply: 'Error — try again.', session_id: sid }); }
+  } catch(e) { res.json({ reply: 'Error â try again.', session_id: sid }); }
 });
 
 app.get('/api/chat/messages', requireAuth, async function(req, res) {
@@ -57,7 +57,7 @@ app.get('/api/chat/messages', requireAuth, async function(req, res) {
 });
 
 // ============================================================
-// CORRECTION / FEEDBACK — team points out mistakes
+// CORRECTION / FEEDBACK â team points out mistakes
 // ============================================================
 app.post('/api/correct', requireAuth, async function(req, res) {
   var { correction, subject } = req.body;
@@ -72,7 +72,7 @@ app.get('/api/memory', requireAuth, async function(req, res) {
 });
 
 // ============================================================
-// CATALOGUE UPLOAD — PDF/text catalogue analysis
+// CATALOGUE UPLOAD â PDF/text catalogue analysis
 // ============================================================
 app.post('/api/catalogue/upload', requireAuth, upload.single('file'), async function(req, res) {
   try {
@@ -128,7 +128,7 @@ app.get('/api/catalogue/uploads', requireAuth, async function(req, res) {
 });
 
 // ============================================================
-// RESEARCH — trigger ScraperAPI search
+// RESEARCH â trigger ScraperAPI search
 // ============================================================
 app.post('/api/research', requireAuth, async function(req, res) {
   var { query, product_id } = req.body;
@@ -162,7 +162,7 @@ app.post('/api/chat/photo', requireAuth, upload.single('photo'), async function(
         resp && resp.webDetection && resp.webDetection.webEntities ? resp.webDetection.webEntities.map(function(e){return e.description;}).filter(Boolean) : []
       ).slice(0,10);
     } catch(e) { console.error('[vision]', e.message); }
-    var q = 'Valeran, ' + ([req.body.caption, labels.length ? 'Product identified: ' + labels.join(', ') : ''].filter(Boolean).join('. ') || 'Photo from Canton Fair — please analyse');
+    var q = 'Valeran, ' + ([req.body.caption, labels.length ? 'Product identified: ' + labels.join(', ') : ''].filter(Boolean).join('. ') || 'Photo from Canton Fair â please analyse');
     var result = await processMessage({ text: q, partnerId: req.partner && req.partner.id, sessionId: sid, messageType: 'photo' });
     res.json({ reply: result.reply || 'Photo analysed and logged.', visionLabels: labels, session_id: sid });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -267,7 +267,7 @@ app.post('/api/search', requireAuth, async function(req, res) {
 });
 
 // ============================================================
-// TELEGRAM WEBHOOK — Full context, saves all messages, learns corrections
+// TELEGRAM WEBHOOK â Full context, saves all messages, learns corrections
 // ============================================================
 app.post('/api/telegram/webhook', async function(req, res) {
   var body = req.body;
@@ -298,8 +298,8 @@ app.post('/api/telegram/webhook', async function(req, res) {
     var replyFrom = (msg.reply_to_message.from && msg.reply_to_message.from.first_name) || 'someone';
     var isBot = msg.reply_to_message.from && msg.reply_to_message.from.is_bot;
     var ctx = isBot
-      ? '[Context — you previously said: "' + msg.reply_to_message.text.slice(0,300) + '"]'
-      : '[Context — ' + replyFrom + ' said: "' + msg.reply_to_message.text.slice(0,300) + '"]';
+      ? '[Context â you previously said: "' + msg.reply_to_message.text.slice(0,300) + '"]'
+      : '[Context â ' + replyFrom + ' said: "' + msg.reply_to_message.text.slice(0,300) + '"]';
     query = ctx + '\n\n' + from + ' asks: ' + query;
   }
 
@@ -310,12 +310,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
       return (data || []).reverse();
     })();
 
-    var system = require('./lib/valeran-core').BASE_SYSTEM ||
-      'You are Valeran, AI assistant for Synergy Ventures at Canton Fair 2026. ' +
-      'Replying to ' + from + ' in team Telegram group. ' +
-      'DETECT language of message and reply in SAME language (Bulgarian/Russian/English). ' +
-      'Be concise, max 200 words. Use [Context:...] if provided.';
-    system += memory;
+    var system = 'You are Valeran, the AI assistant for Synergy Ventures at Canton Fair 2026 in Guangzhou, China. You are responding to ' + from + ' in the team Telegram group. Team: Alexander (EN), Ina (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi (BG). CRITICAL RULE: detect the language of the incoming message and reply in the EXACT same language — Bulgarian in = Bulgarian out, Russian in = Russian out, English in = English out. Never mix languages. Be concise (max 200 words). Use any [Context:...] provided to understand what is being replied to. Help with: product sourcing, margin calculations, weather, translations, schedules, jokes, or anything else.' + memory;
 
     var messages = history.map(function(m){ return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
     messages.push({ role: 'user', content: query });
@@ -368,5 +363,5 @@ async function getActiveSessionId(date) {
   return r.data && r.data.id || null;
 }
 
-app.listen(process.env.PORT || 3001, function() { console.log('✅ Valeran online'); });
+app.listen(process.env.PORT || 3001, function() { console.log('â Valeran online'); });
 module.exports = app;
