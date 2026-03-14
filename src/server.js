@@ -27,7 +27,7 @@ async function requireAuth(req, res, next) {
 }
 
 app.get('/api/health', function(req, res) { res.json({ status: 'ok', valeran: 'online', time: new Date().toISOString() }); });
-app.get('/health',     function(req, res) { res.json({ status: 'ok' }); });
+app.get('/health', function(req, res) { res.json({ status: 'ok' }); });
 
 app.get('/api/debug/ai', async function(req, res) {
   try {
@@ -113,7 +113,6 @@ app.patch('/api/suppliers/:id', requireAuth, async function(req, res) {
   var r = await supabase.from('suppliers').update(req.body).eq('id', req.params.id).select().single();
   res.json(r.error ? { error: r.error } : { supplier: r.data });
 });
-
 app.get('/api/products', requireAuth, async function(req, res) {
   var q = supabase.from('products').select('*').order('created_at', { ascending: false }).limit(parseInt(req.query.limit)||100);
   if (req.query.category) q = q.eq('category', req.query.category);
@@ -127,7 +126,6 @@ app.patch('/api/products/:id', requireAuth, async function(req, res) {
   var r = await supabase.from('products').update(req.body).eq('id', req.params.id).select().single();
   res.json(r.error ? { error: r.error } : { product: r.data });
 });
-
 app.get('/api/meetings', requireAuth, async function(req, res) {
   var q = supabase.from('meetings').select('*').order('scheduled_at');
   if (req.query.date) q = q.gte('scheduled_at', req.query.date).lt('scheduled_at', req.query.date+'T23:59:59');
@@ -137,18 +135,15 @@ app.post('/api/meetings', requireAuth, async function(req, res) {
   var r = await supabase.from('meetings').insert(Object.assign({}, req.body, { created_by: req.partner&&req.partner.id })).select().single();
   res.json(r.error ? { error: r.error } : { meeting: r.data });
 });
-
 app.post('/api/search', requireAuth, upload.single('image'), async function(req, res) {
   var results = { internal: [] };
   if (req.body.query) { var r = await supabase.from('products').select('*').ilike('name','%'+req.body.query+'%').limit(10); results.internal = r.data||[]; }
   res.json(results);
 });
-
 app.get('/api/categories', requireAuth, async function(req, res) {
   var r = await supabase.from('categories').select('*').order('name');
   res.json(r.error ? { error: r.error } : { categories: r.data||[] });
 });
-
 app.get('/api/reports', requireAuth, async function(req, res) {
   var q = supabase.from('reports').select('*').order('created_at', { ascending: false }).limit(20);
   if (req.query.type) q = q.eq('type', req.query.type);
@@ -156,7 +151,7 @@ app.get('/api/reports', requireAuth, async function(req, res) {
 });
 app.post('/api/reports/generate', requireAuth, async function(req, res) {
   var sid = req.body.session_id || await getActiveSessionId();
-  var d   = req.body.date || new Date().toISOString().split('T')[0];
+  var d = req.body.date || new Date().toISOString().split('T')[0];
   if (!sid) return res.status(400).json({ error: 'No session' });
   try {
     var report = req.body.type === 'evening' ? await generateEveningReport(sid, d) : await generateMorningReport(sid, d);
@@ -164,79 +159,99 @@ app.post('/api/reports/generate', requireAuth, async function(req, res) {
     res.json({ report: report });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
-
-app.post('/api/welcome', requireAuth, async function(req, res) {
-  res.json(await sendWelcomeMessage());
-});
-
+app.post('/api/welcome', requireAuth, async function(req, res) { res.json(await sendWelcomeMessage()); });
 app.get('/api/partners', requireAuth, async function(req, res) {
   var r = await supabase.from('partner_profiles').select('id, name, role, at_fair, language, email');
   res.json(r.error ? { error: r.error } : { partners: r.data||[] });
 });
 
 // ============================================================
-// TELEGRAM WEBHOOK — DEFINITIVE FIX
-//
-// ROOT CAUSE: Vercel serverless kills async execution after res.send()
-// even with maxDuration:60. The function IS kept alive, but network
-// sockets and async I/O after res.send() may not complete reliably.
-//
-// SOLUTION: Do ALL work BEFORE sending 200 back to Telegram.
-// Haiku responds in ~2-3 seconds. Telegram allows 5 seconds.
-// This is tight but works. If it exceeds 5s (rare), Telegram retries
-// once — we deduplicate via message_id check.
+// TELEGRAM WEBHOOK
+// FIX 1: Runs AI BEFORE res.sendStatus(200) — keeps Vercel alive
+// FIX 2: Includes reply_to_message context so Valeran sees
+//        what message someone replied to
 // ============================================================
 app.post('/api/telegram/webhook', async function(req, res) {
   var body = req.body;
   var msg  = (body && body.message) || (body && body.channel_post) || (body && body.edited_message);
   var text = (msg && msg.text && msg.text.trim()) || '';
 
-  // Nothing to process — ACK immediately
   if (!msg || !text) { res.sendStatus(200); return; }
 
-  // Check if addressed to Valeran
-  var isReply   = !!(msg.reply_to_message && msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
+  var isReply   = !!(msg.reply_to_message && msg.reply_to_message.from);
   var isMention = text.indexOf('@ValeranSV_bot') > -1;
   var isPrefix  = /^valeran/i.test(text) || /^valera[,\s]/i.test(text) || /^\u0432\u0430\u043b\u0435\u0440\u0430/i.test(text);
 
   if (!isPrefix && !isMention && !isReply) { res.sendStatus(200); return; }
 
-  // Addressed to Valeran — process BEFORE sending 200
   try {
-    var query = text.replace(/@ValeranSV_bot/gi,'').replace(/^(valeran|valera|\u0432\u0430\u043b\u0435\u0440\u0430\u043d|\u0432\u0430\u043b\u0435\u0440\u0430)[,\s!?]*/i,'').trim();
-    if (!query) query = 'Hello';
-
     var from   = (msg.from && msg.from.first_name) || 'Partner';
     var chatId = msg.chat.id;
     var sid    = await getActiveSessionId() || 'default';
 
-    console.log('[TG] ' + from + ' asks: ' + query.slice(0,60));
+    // Build the query — include reply context if present
+    // This is the KEY FIX: when Ina replies to a message, we pass BOTH
+    // the original message AND Ina's request so Valeran has full context
+    var query = text.replace(/@ValeranSV_bot/gi,'').replace(/^(valeran|valera|\u0432\u0430\u043b\u0435\u0440\u0430\u043d|\u0432\u0430\u043b\u0435\u0440\u0430)[,\s!?]*/i,'').trim();
+    if (!query) query = 'Hello';
 
-    var system = 'You are Valeran, the AI assistant for Synergy Ventures at Canton Fair 2026 in Guangzhou, China. Replying to ' + from + ' in the team group. Team languages: EN/RU/BG. DETECT the input language and reply in the SAME language. Be concise (max 200 words). Help with: product sourcing, margins, suppliers, weather, translations, schedules, or anything else.';
+    // If replying to another message, prepend that context
+    var replyCtx = '';
+    if (msg.reply_to_message && msg.reply_to_message.text) {
+      var replyFrom = (msg.reply_to_message.from && msg.reply_to_message.from.first_name) || 'someone';
+      // Don't re-process if it's a reply to Valeran's own message
+      var isReplyToValeran = msg.reply_to_message.from && msg.reply_to_message.from.is_bot;
+      replyCtx = isReplyToValeran
+        ? '[Context: you previously said: "' + msg.reply_to_message.text.slice(0,300) + '"]'
+        : '[Context: ' + replyFrom + ' said: "' + msg.reply_to_message.text.slice(0,300) + '"]';
+      query = replyCtx + '\n\n' + from + ' asks: ' + query;
+    }
 
-    // STEP 1: Get AI reply (keeps function alive — res not sent yet)
-    var reply = await callAI([{ role: 'user', content: query }], system, 500, 18000);
-    if (!reply) { res.sendStatus(200); return; }
+    console.log('[TG] ' + from + ': ' + query.slice(0,80));
 
-    // STEP 2: Send to Telegram
+    var system = [
+      'You are Valeran — the AI assistant for Synergy Ventures at Canton Fair 2026 in Guangzhou, China.',
+      'You are in the team Telegram group. You are replying to ' + from + '.',
+      '',
+      'TEAM (know them by name):',
+      '- Alexander Oslan: owner/founder, speaks English',
+      '- Ina Kanaplianikava: partner, at the fair, speaks Russian',
+      '- Konstantin Khoch: partner, at the fair, speaks Russian',
+      '- Konstantin Ganev: partner, at the fair, speaks Bulgarian',
+      '- Slavi Mikinski: remote observer, speaks Bulgarian',
+      '',
+      'LANGUAGE RULE (CRITICAL): Detect the language of the incoming message and reply in that EXACT language.',
+      'If message is in Bulgarian -> reply in Bulgarian.',
+      'If message is in Russian -> reply in Russian.',
+      'If message is in English -> reply in English.',
+      'Never mix languages in one reply.',
+      '',
+      'CONTEXT RULE: When you see [Context: ...] at the start of a message, that is the message being replied to.',
+      'Use that context to give a relevant answer. Never say you cannot see previous messages if context is provided.',
+      '',
+      'PERSONALITY: Direct, smart, practical. You know sourcing, margins, Chinese manufacturing, EU e-commerce.',
+      'You can also help with: translations, weather, jokes, general questions — anything the team needs.',
+      '',
+      'FORMAT: Max 200 words. Use bullet points only when listing multiple items. No unnecessary preamble.'
+    ].join(' ');
+
+    var reply = await callAI([{ role: 'user', content: query }], system, 600, 18000);
+    if (!reply) { console.error('[TG] AI returned null'); res.sendStatus(200); return; }
+
     await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text: reply, reply_to_message_id: msg.message_id, parse_mode: 'Markdown' })
     });
-    console.log('[TG] sent reply to ' + from);
+    console.log('[TG] replied to ' + from + ': ' + reply.slice(0,60));
 
-    // STEP 3: Save to DB (non-blocking — do after res)
     supabase.from('chat_messages').insert([
       { session_id: sid, role: 'user', content: query, partner_id: null },
       { session_id: sid, role: 'assistant', content: reply, partner_id: null }
     ]).then(function(){}).catch(function(){});
 
-  } catch (e) {
-    console.error('[TG] error:', e.message);
-  }
+  } catch (e) { console.error('[TG] error:', e.message); }
 
-  // STEP 4: ACK to Telegram (after all work is done)
   res.sendStatus(200);
 });
 
@@ -247,10 +262,10 @@ cron.schedule('30 13 * * *', async function() {
   enrichAllProducts(sid).catch(console.error);
 });
 cron.schedule('0 23 * * *', async function() {
-  var tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
-  var sid = await getActiveSessionId(tomorrow.toISOString().split('T')[0]); if (!sid) return;
-  var report = await generateMorningReport(sid, tomorrow.toISOString().split('T')[0]);
-  await sendReportToTelegram(report);
+  var t = new Date(); t.setDate(t.getDate()+1);
+  var d = t.toISOString().split('T')[0];
+  var sid = await getActiveSessionId(d); if (!sid) return;
+  await sendReportToTelegram(await generateMorningReport(sid, d));
 });
 
 async function getActiveSessionId(date) {
