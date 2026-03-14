@@ -1,7 +1,7 @@
 // ============================================================
-// VALERAN API SERVER — Fixed version
+// VALERAN API SERVER â Fixed version
 // Fixes applied:
-//   1. Chat handler: removed unawaited IIFE → now properly awaited
+//   1. Chat handler: removed unawaited IIFE â now properly awaited
 //   2. Removed google-cloud imports (need service account JSON, breaks cold start)
 //   3. Telegram webhook: respond 200 immediately, async AI in background
 //   4. Telegram webhook uses Haiku (fast) not Sonnet (slow)
@@ -55,7 +55,7 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', valeran: 'online',
 app.get('/health',     (req, res) => res.json({ status: 'ok' }));
 
 // ============================================================
-// CHAT: SEND MESSAGE — FIXED (was unawaited IIFE causing 504)
+// CHAT: SEND MESSAGE â FIXED (was unawaited IIFE causing 504)
 // ============================================================
 app.post('/api/chat/message', requireAuth, async (req, res) => {
   const { text, session_id } = req.body;
@@ -71,13 +71,13 @@ app.post('/api/chat/message', requireAuth, async (req, res) => {
       messageType: 'text'
     });
 
-    const reply = result.reply || 'Got it — message noted.';
+    const reply = result.reply || 'Got it â message noted.';
     res.json({ reply, session_id: sid });
 
   } catch (e) {
     console.error('Chat error:', e);
     if (e.name === 'AbortError') {
-      return res.json({ reply: 'Taking longer than expected — please try again.', session_id: sid });
+      return res.json({ reply: 'Taking longer than expected â please try again.', session_id: sid });
     }
     res.status(500).json({ error: e.message });
   }
@@ -93,7 +93,7 @@ app.post('/api/chat/photo', requireAuth, upload.single('photo'), async (req, res
 
     if (!req.file) return res.status(400).json({ error: 'No photo uploaded' });
 
-    // Use Google Vision REST API (no service account needed — just API key)
+    // Use Google Vision REST API (no service account needed â just API key)
     let visionLabels = [];
     try {
       const GKEY = process.env.GOOGLE_API_KEY;
@@ -340,7 +340,7 @@ app.post('/api/reports/generate', requireAuth, async (req, res) => {
 });
 
 // ============================================================
-// WELCOME — one-time manual trigger (NOT called automatically)
+// WELCOME â one-time manual trigger (NOT called automatically)
 // ============================================================
 app.post('/api/welcome', requireAuth, async (req, res) => {
   const result = await sendWelcomeMessage();
@@ -356,16 +356,16 @@ app.get('/api/partners', requireAuth, async (req, res) => {
 });
 
 // ============================================================
-// TELEGRAM WEBHOOK — Fixed:
+// TELEGRAM WEBHOOK â Fixed:
 //   1. res.sendStatus(200) FIRST (Telegram needs response in <5s)
 //   2. AI call is fully async after 200 is sent
-//   3. Uses Haiku (fast) — Sonnet would always timeout
+//   3. Uses Haiku (fast) â Sonnet would always timeout
 // ============================================================
 app.post('/api/telegram/webhook', async (req, res) => {
-  // Respond to Telegram immediately — must be < 5s
+  // Respond to Telegram immediately â must be < 5s
   res.sendStatus(200);
 
-  // Process async — Telegram doesn't wait for this
+  // Process async â Telegram doesn't wait for this
   setImmediate(async () => {
     try {
       const msg = req.body?.message || req.body?.channel_post;
@@ -393,7 +393,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: msg.chat.id,
-          text: '🤖 ' + aiReply,
+          text: 'ð¤ ' + aiReply,
           reply_to_message_id: msg.message_id,
           parse_mode: 'Markdown'
         })
@@ -420,7 +420,7 @@ cron.schedule('30 13 * * *', async () => {
   const sid = await getActiveSessionId();
   if (!sid) return;
   const date = new Date().toISOString().split('T')[0];
-  console.log('📊 Generating evening report...');
+  console.log('ð Generating evening report...');
   const report = await generateEveningReport(sid, date);
   await sendReportToTelegram(report);
   // Background enrichment
@@ -434,7 +434,7 @@ cron.schedule('0 23 * * *', async () => {
   const date = tomorrow.toISOString().split('T')[0];
   const sid  = await getActiveSessionId(date);
   if (!sid) return;
-  console.log('🌅 Generating morning report...');
+  console.log('ð Generating morning report...');
   const report = await generateMorningReport(sid, date);
   await sendReportToTelegram(report);
 });
@@ -453,10 +453,43 @@ async function getActiveSessionId(date) {
   return data?.id || null;
 }
 
+
+// ============================================================
+// DEBUG — temporary endpoint to diagnose Anthropic connectivity
+// ============================================================
+app.get('/api/debug/ai', async (req, res) => {
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 30,
+        messages: [{ role: 'user', content: 'Say: VALERAN_OK' }]
+      })
+    });
+    const data = await r.json();
+    res.json({
+      httpStatus: r.status,
+      hasContent: !!(data?.content?.[0]?.text),
+      reply: data?.content?.[0]?.text || null,
+      error: data?.error || null,
+      keyPrefix: (process.env.ANTHROPIC_API_KEY || '').slice(0, 20) + '...',
+      model: 'claude-haiku-4-5-20251001'
+    });
+  } catch (e) {
+    res.json({ fetchError: e.message, stack: e.stack?.slice(0,300) });
+  }
+});
+
 // ============================================================
 // START
 // ============================================================
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`✅ Valeran API running on port ${PORT}`));
+app.listen(PORT, () => console.log(`â Valeran API running on port ${PORT}`));
 
 module.exports = app;
