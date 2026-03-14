@@ -1,5 +1,5 @@
 /* ============================================================
-   VALERAN Ã¢ÂÂ App CSS
+   VALERAN ÃÂ¢ÃÂÃÂ App CSS
    Responsive, mobile-first, works on all screen sizes
    ============================================================ */
 
@@ -34,12 +34,12 @@ body {
 }
 
 /* ============================================================
-   APP SHELL Ã¢ÂÂ fills viewport exactly
+   APP SHELL ÃÂ¢ÃÂÃÂ fills viewport exactly
    ============================================================ */
 .app {
   display: flex;
   flex-direction: column;
-  height: 100dvh; /* dynamic viewport height Ã¢ÂÂ handles mobile browser chrome */
+  height: 100dvh; /* dynamic viewport height ÃÂ¢ÃÂÃÂ handles mobile browser chrome */
   width: 100%;
   overflow: hidden;
 }
@@ -116,7 +116,7 @@ body {
   overflow: hidden;
 }
 
-/* Header Ã¢ÂÂ fixed at top, doesn't scroll */
+/* Header ÃÂ¢ÃÂÃÂ fixed at top, doesn't scroll */
 .chat-header {
   display: flex;
   align-items: center;
@@ -141,7 +141,7 @@ body {
   box-shadow: 0 0 6px var(--valeran);
 }
 
-/* Messages Ã¢ÂÂ scrollable area */
+/* Messages ÃÂ¢ÃÂÃÂ scrollable area */
 .messages-list {
   flex: 1;
   overflow-y: auto;
@@ -222,7 +222,7 @@ body {
   border: 1px solid rgba(255,107,107,0.2);
 }
 
-/* Input bar Ã¢ÂÂ fixed at bottom */
+/* Input bar ÃÂ¢ÃÂÃÂ fixed at bottom */
 .chat-input-bar {
   display: flex;
   align-items: center;
@@ -449,3 +449,9 @@ button.btn-danger { background: var(--danger); color: #fff; }
   line-height: 1.4;
 }
 .dash-info-row span:first-child { flex-shrink: 0; }
+
+/* Inline typing dots (for team typing indicator) */
+.typing-dots { display:inline-flex; gap:3px; align-items:center; }
+.typing-dots span { width:5px; height:5px; background:rgba(255,255,255,0.4); border-radius:50%; animation:bounce 1.2s infinite; }
+.typing-dots span:nth-child(2) { animation-delay:.2s; }
+.typing-dots span:nth-child(3) { animation-delay:.4s; }
