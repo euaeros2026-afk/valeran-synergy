@@ -147,7 +147,7 @@ app.get('/api/research/results', requireAuth, async function(req, res) {
 
 app.post('/api/chat/photo', requireAuth, upload.single('photo'), async function(req, res) {
   try {
-    var sid = req.body.session_id || (await getActiveSessionId()) || null;
+    var sid = req.body.session_id || (await getActiveSessionId()) || 'team-chat';
     if (!req.file) return res.status(400).json({ error: 'No photo' });
     var labels = [];
     try {
@@ -163,7 +163,7 @@ app.post('/api/chat/photo', requireAuth, upload.single('photo'), async function(
 
 app.post('/api/chat/voice', requireAuth, upload.single('audio'), async function(req, res) {
   try {
-    var sid = req.body.session_id || (await getActiveSessionId()) || null;
+    var sid = req.body.session_id || (await getActiveSessionId()) || 'team-chat';
     if (!req.file) return res.status(400).json({ error: 'No audio' });
     var transcript = '';
     try {
@@ -338,7 +338,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
 
   var from   = (msg.from && msg.from.first_name) || 'Partner';
   var chatId = msg.chat && msg.chat.id;
-  var sid    = (await getActiveSessionId()) || null;
+  var sid    = (await getActiveSessionId()) || 'team-chat';
 
   // ---- ALL FILE TYPES ----
   if (msg.document) {
