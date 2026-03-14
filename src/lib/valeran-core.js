@@ -77,7 +77,7 @@ async function saveMessage(sessionId, role, content, partnerId, source, telegram
   if (role === 'assistant' && content) { content = content.replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n\n?/, '').replace(/^[A-Z]{2,3}:\s*/, '').trim(); }
   if (role === 'assistant') content = content ? content.replace(/^\*\*(?:EN|BG|RU|English|Bulgarian|Russian)\*\*[^\n]*\n*/gim, '').replace(/^(?:EN|BG|RU|English|Bulgarian|Russian):\s*/gim, '').replace(/^#{1,6}\s+(.+)/gm, function(_, t) { return '\n*' + t.trim() + '*'; }).replace(/\*\*([^*\n]+)\*\*/g, '*$1*').replace(/^---+\s*$/gm, '').replace(/^\|[^\n]*\|\s*$/gm, function(row) { if (/^\|[\s|:-]+\|$/.test(row)) return ''; return row.split('|').map(function(c){return c.trim();}).filter(function(c){return c.length>0;}).join(' \u2022 '); }).replace(/\n{3,}/g, '\n\n').trim() : content;
   try {
-    await supabase.from('chat_messages').insert({ session_id: sessionId || 'default', partner_id: partnerId || null, role: role, content: content, source: source || 'web', telegram_user: telegramUser || null });
+    await supabase.from('chat_messages').insert({ session_id: null, partner_id: partnerId || null, role: role, content: content, source: source || 'web', telegram_user: telegramUser || null });
   } catch(e) { console.error('[save]', e.message); }
 }
 
@@ -133,6 +133,7 @@ async function processMessage(opts) {
 }
 
 async function analyseCatalogue(content, supplierId, sessionId, uploadId) {
+  if (!supplierId) { try { var sr=await callAI([{role:'user',content:'Extract only the company/supplier name from this catalogue. Return JSON: {"name":"Company Name"}. Content: '+content.slice(0,800)}],'Extract company name. Return only valid JSON.',80,6000); if(sr){var sd=JSON.parse(sr.replace(/```json|```/g,'').trim()); if(sd&&sd.name&&sd.name.length>2){var ex=await supabase.from('suppliers').select('id').ilike('name',sd.name).limit(1); if(ex.data&&ex.data.length){supplierId=ex.data[0].id;}else{var ns=await supabase.from('suppliers').insert({name:sd.name,session_id:null,created_by:null}).select('id').single(); if(ns.data)supplierId=ns.data.id;}}} } catch(se){} }
   var prompt = 'You are a Canton Fair sourcing analyst. Analyse this supplier catalogue. Extract ALL products into a JSON array. Each product must have: name, description, price_usd (number or null), moq (min order qty, number or null), materials, certifications, notes. Return ONLY valid JSON array, no other text. Content: ' + content.slice(0, 5000);
   var raw = await callAI([{ role: 'user', content: prompt }], 'You are a product data extractor. Return only a valid JSON array.', 2000, 30000);
   var products = [];
@@ -147,7 +148,7 @@ async function analyseCatalogue(content, supplierId, sessionId, uploadId) {
   }
   var summary = await callAI([{ role: 'user', content: 'Summarise this supplier catalogue for a Telegram group. Format: *SUPPLIER OVERVIEW* line, then • bullet points for top products with price ranges and MOQ where available, then • key advantages. Use *Bold* for section titles, • for bullets. Max 200 words. No ## headers, no language prefix labels. Content: ' + content.slice(0, 2000) }], BASE_SYSTEM, 200, 12000) || 'Catalogue analysed.';
   if (uploadId) {
-    await supabase.from('catalogue_uploads').update({ analysis_status: 'done', products_extracted: products.length, summary: summary }).eq('id', uploadId);
+    await supabase.from('catalogue_uploads').update({ analysis_status: 'done', products_extracted: products.length, summary: summary, supplier_id: supplierId || null }).eq('id', uploadId);
   }
   return { products: products, summary: summary, count: products.length };
 }
