@@ -44,7 +44,7 @@ app.post('/api/chat/message', requireAuth, async function(req, res) {
   try {
     var result = await core.processMessage({ text: req.body.text, partnerId: req.partner && req.partner.id, sessionId: sid });
     res.json({ reply: result.reply || 'Noted.', session_id: sid, responded: result.responded });
-  } catch(e) { res.json({ reply: 'Error ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ try again.', session_id: sid }); }
+  } catch(e) { res.json({ reply: 'Error ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ try again.', session_id: sid }); }
 });
 
 app.get('/api/chat/messages', requireAuth, async function(req, res) {
@@ -192,6 +192,28 @@ app.post('/api/reports/generate', requireAuth, async function(req, res) {
     res.json({ report: report });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+app.post('/api/presence/ping', requireAuth, async function(req, res) {
+  var email = req.user.email;
+  var name  = (req.partner && req.partner.name) || email.split('@')[0];
+  await supabase.from('partner_presence').upsert(
+    { email: email, name: name, partner_id: (req.partner && req.partner.id) || null, last_seen: new Date().toISOString(), is_online: true, platform: (req.body && req.body.platform) || 'web' },
+    { onConflict: 'email' }
+  );
+  res.json({ ok: true });
+});
+app.post('/api/presence/offline', requireAuth, async function(req, res) {
+  await supabase.from('partner_presence').upsert(
+    { email: req.user.email, is_online: false, last_seen: new Date().toISOString() },
+    { onConflict: 'email' }
+  );
+  res.json({ ok: true });
+});
+app.get('/api/presence', requireAuth, async function(req, res) {
+  await supabase.from('partner_presence').update({ is_online: false }).lt('last_seen', new Date(Date.now() - 90000).toISOString());
+  var r = await supabase.from('partner_presence').select('*').order('name');
+  res.json(r.error ? { error: r.error } : { presence: r.data || [] });
+});
 app.post('/api/welcome', requireAuth, async function(req, res) { res.json(await tg.sendWelcomeMessage()); });
 app.get('/api/partners', requireAuth, async function(req, res) {
   var r = await supabase.from('partner_profiles').select('id, name, role, at_fair, language, email');
@@ -213,7 +235,7 @@ var TG_SYSTEM = 'You are Valeran, AI assistant for Synergy Ventures at Canton Fa
   'Team: Alexander (EN), Ina (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi (BG). ' +
   'LANGUAGE: reply in exact same language as the message. BG=BG, RU=RU, EN=EN. Never mix. ' +
   'STYLE: short and direct. 1-3 sentences for simple questions. No fluff. ' +
-  'Use [Context:...] when present ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ that is what someone replied to.';
+  'Use [Context:...] when present ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ that is what someone replied to.';
 
 async function tgSend(chatId, text, replyToId) {
   var body = { chat_id: chatId, text: text.slice(0, 4000) };
@@ -226,8 +248,8 @@ async function tgSend(chatId, text, replyToId) {
 // ---- TELEGRAM WEBHOOK ----
 // CRITICAL: ALL work happens BEFORE res.sendStatus(200).
 // Vercel kills async code after res.send().
-// For documents: takes 10-20s ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Telegram retries after 5s (harmless).
-// For text: takes 3-5s ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ within Telegram's window.
+// For documents: takes 10-20s ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Telegram retries after 5s (harmless).
+// For text: takes 3-5s ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ within Telegram's window.
 
 app.post('/api/telegram/webhook', async function(req, res) {
   var body = req.body || {};
@@ -265,7 +287,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
 
       // ---- LEVEL 1: Try direct text extraction ----
       var fileText = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
-      // Count actual words (3+ letter sequences) â binary PDFs have scattered chars, not real words
+      // Count actual words (3+ letter sequences) Ã¢ÂÂ binary PDFs have scattered chars, not real words
       var words = (fileText.match(/[a-zA-Z\u0400-\u04FF]{3,}/g) || []);
       var wordDensity = words.length / Math.max(1, buffer.length / 100);
       var hasRealText = words.length > 80 && wordDensity > 1.5;
@@ -344,11 +366,11 @@ app.post('/api/telegram/webhook', async function(req, res) {
       // ---- FALLBACK: save with caption, ask for text version ----
       if (!summary) {
         method = 'fallback';
-        summary = 'Saved "' + fname + '" Ã¢ÂÂ' +
+        summary = 'Saved "' + fname + '" ÃÂ¢ÃÂÃÂ' +
           (cap ? '\nYour note: ' + cap : '') +
-          '\n\nThis PDF contains only scanned images Ã¢ÂÂ no readable text layer. To make it work:\n' +
-          '1. Open on PC Ã¢ÂÂ upload to Google Drive Ã¢ÂÂ right-click Ã¢ÂÂ Open with Google Docs (auto-OCR)\n' +
-          '2. Download as .txt Ã¢ÂÂ send me that file\n' +
+          '\n\nThis PDF contains only scanned images ÃÂ¢ÃÂÃÂ no readable text layer. To make it work:\n' +
+          '1. Open on PC ÃÂ¢ÃÂÃÂ upload to Google Drive ÃÂ¢ÃÂÃÂ right-click ÃÂ¢ÃÂÃÂ Open with Google Docs (auto-OCR)\n' +
+          '2. Download as .txt ÃÂ¢ÃÂÃÂ send me that file\n' +
           'Or just tell me the key info in a message and I will remember it.';
       }
 
@@ -361,7 +383,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
       var reply = summary
         .replace(/^#{1,3}\s*/gm, '')           // remove ## headers
         .replace(/\*\*([^*]+)\*\*/g, '*$1*')  // convert **bold** to *bold*
-        .replace(/^\s*[•·]/gm, '-')             // convert bullet symbols to -
+        .replace(/^\s*[â¢Â·]/gm, '-')             // convert bullet symbols to -
         .slice(0, 3900);
       if (method && method !== 'fallback') reply = reply + '\n\n_(' + method + ')_';
       await tgSend(chatId, reply, msg.message_id);
@@ -375,6 +397,61 @@ app.post('/api/telegram/webhook', async function(req, res) {
 
     res.sendStatus(200);
     return;
+  }
+
+  // ---- VOICE (Telegram) ----
+  if (msg.voice || msg.audio) {
+    var vf = msg.voice || msg.audio;
+    try {
+      var vfi = await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/getFile?file_id=' + vf.file_id);
+      var vfd = await vfi.json();
+      if (!vfd.ok) throw new Error('Cannot get voice file');
+      var vCtrl = new AbortController();
+      setTimeout(function() { vCtrl.abort(); }, 20000);
+      var vResp = await fetch('https://api.telegram.org/file/bot' + process.env.TELEGRAM_BOT_TOKEN + '/' + vfd.result.file_path, { signal: vCtrl.signal });
+      if (!vResp.ok) throw new Error('Voice download failed');
+      var vBuf = Buffer.from(await vResp.arrayBuffer());
+      var transcript = '';
+      try {
+        var sR = await fetch('https://speech.googleapis.com/v1/speech:recognize?key=' + process.env.GOOGLE_API_KEY, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            audio: { content: vBuf.toString('base64') },
+            config: { encoding: 'OGG_OPUS', sampleRateHertz: 48000, languageCode: 'en-US', alternativeLanguageCodes: ['ru-RU', 'bg-BG'], enableAutomaticPunctuation: true }
+          })
+        });
+        var sD = await sR.json();
+        transcript = (sD.results || []).map(function(r) { return r.alternatives[0].transcript; }).join(' ').trim();
+      } catch(se) { console.error('[voice]', se.message); }
+
+      if (!transcript) {
+        await tgSend(chatId, 'Could not transcribe voice message. Please speak clearly or type instead.', msg.message_id);
+        res.sendStatus(200); return;
+      }
+
+      // Show transcript so group can see it
+      await tgSend(chatId, '🎤 ' + from + ': "' + transcript + '"', msg.message_id);
+
+      var isAddr = /^valeran/i.test(transcript) || /^valera[,\s]/i.test(transcript) || /^\u0432\u0430\u043b\u0435\u0440\u0430/i.test(transcript);
+      await core.saveMessage(sid, 'user', from + ' (voice): ' + transcript, null, 'telegram', from);
+
+      if (isAddr) {
+        var vQuery = transcript.replace(/^(valeran|valera|\u0432\u0430\u043b\u0435\u0440\u0430\u043d|\u0432\u0430\u043b\u0435\u0440\u0430)[,\s!?]*/i, '').trim() || transcript;
+        var vMem  = await core.loadMemory();
+        var vHR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(10);
+        var vMsgs = ((vHR.data || []).reverse()).map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
+        vMsgs.push({ role: 'user', content: vQuery });
+        var vReply = await core.callAI(vMsgs, TG_SYSTEM + vMem, 400, 18000);
+        if (vReply) {
+          await tgSend(chatId, vReply, null);
+          await core.saveMessage(sid, 'assistant', vReply, null, 'telegram', 'Valeran');
+        }
+      }
+    } catch(ve) {
+      console.error('[TG voice]', ve.message);
+      await tgSend(chatId, 'Voice error: ' + ve.message, msg.message_id);
+    }
+    res.sendStatus(200); return;
   }
 
   // ---- TEXT ----
@@ -396,7 +473,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
   if (msg.reply_to_message && msg.reply_to_message.text) {
     var rFrom = (msg.reply_to_message.from && msg.reply_to_message.from.first_name) || 'someone';
     var isBot = !!(msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
-    var ctx = isBot ? '[Context ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
+    var ctx = isBot ? '[Context ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
     query = ctx + '\n' + from + ' asks: ' + query;
   }
 
