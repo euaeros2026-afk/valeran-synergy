@@ -74,13 +74,24 @@ async function saveCorrection(content, partnerId, subject) {
 }
 
 async function saveMessage(sessionId, role, content, partnerId, source, telegramUser) {
-  if (role === 'assistant' && content) { content = content.replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n\n?/, '').replace(/^[A-Z]{2,3}:\s*/, '').trim(); }
-  if (role === 'assistant') content = content ? content.replace(/^\*\*(?:EN|BG|RU|English|Bulgarian|Russian)\*\*[^\n]*\n*/gim, '').replace(/^(?:EN|BG|RU|English|Bulgarian|Russian):\s*/gim, '').replace(/^#{1,6}\s+(.+)/gm, function(_, t) { return '\n*' + t.trim() + '*'; }).replace(/\*\*([^*\n]+)\*\*/g, '*$1*').replace(/^---+\s*$/gm, '').replace(/^\|[^\n]*\|\s*$/gm, function(row) { if (/^\|[\s|:-]+\|$/.test(row)) return ''; return row.split('|').map(function(c){return c.trim();}).filter(function(c){return c.length>0;}).join(' \u2022 '); }).replace(/\n{3,}/g, '\n\n').trim() : content;
+  // Strip language labels from assistant messages before saving
+  if (role === 'assistant' && content) {
+    content = content
+      .replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n*/gm, '')
+      .replace(/^[A-Z]{2,3}:[^\n]*\n*/gm, '')
+      .trim();
+  }
   try {
-    await supabase.from('chat_messages').insert({ session_id: null, partner_id: partnerId || null, role: role, content: content, source: source || 'web', telegram_user: telegramUser || null });
+    await supabase.from('chat_messages').insert({
+      session_id: sessionId || 'team-chat',
+      partner_id: partnerId || null,
+      role: role,
+      content: content,
+      source: source || 'web',
+      telegram_user: telegramUser || null
+    });
   } catch(e) { console.error('[save]', e.message); }
 }
-
 async function getChatHistory(sessionId) {
   var sid = sessionId || 'team-chat';
   try {
