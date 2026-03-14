@@ -39,7 +39,7 @@ app.get('/api/debug/ai', async function(req, res) {
 });
 
 
-// Save a team message (no AI response) Ã¢ÂÂ for group chat between members
+// Save a team message (no AI response) ÃÂ¢ÃÂÃÂ for group chat between members
 app.post('/api/chat/send', requireAuth, async function(req, res) {
   if (!req.body.text) return res.status(400).json({ error: 'No text' });
   var sid = 'team-chat';
@@ -62,7 +62,7 @@ app.post('/api/chat/message', requireAuth, async function(req, res) {
   try {
     var result = await core.processMessage({ text: req.body.text, partnerId: req.partner && req.partner.id, sessionId: sid });
     res.json({ reply: result.responded ? result.reply : null, session_id: sid, responded: result.responded });
-  } catch(e) { res.json({ reply: 'Error ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ try again.', session_id: sid }); }
+  } catch(e) { res.json({ reply: 'Error ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ try again.', session_id: sid }); }
 });
 
 app.get('/api/chat/messages', requireAuth, async function(req, res) {
@@ -253,7 +253,7 @@ var TG_SYSTEM = 'You are Valeran, AI assistant for Synergy Ventures at Canton Fa
   'Team: Alexander (EN), Ina (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi (BG). ' +
   'LANGUAGE: reply in exact same language as the message. BG=BG, RU=RU, EN=EN. Never mix. ' +
   'STYLE: short and direct. 1-3 sentences for simple questions. No fluff. ' +
-  'Use [Context:...] when present ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ that is what someone replied to.';
+  'Use [Context:...] when present ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ that is what someone replied to.';
 
 async function tgSend(chatId, text, replyToId) {
   var body = { chat_id: chatId, text: text.slice(0, 4000) };
@@ -266,8 +266,8 @@ async function tgSend(chatId, text, replyToId) {
 // ---- TELEGRAM WEBHOOK ----
 // CRITICAL: ALL work happens BEFORE res.sendStatus(200).
 // Vercel kills async code after res.send().
-// For documents: takes 10-20s ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Telegram retries after 5s (harmless).
-// For text: takes 3-5s ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ within Telegram's window.
+// For documents: takes 10-20s ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Telegram retries after 5s (harmless).
+// For text: takes 3-5s ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ within Telegram's window.
 
 app.post('/api/telegram/webhook', async function(req, res) {
   var body = req.body || {};
@@ -278,152 +278,88 @@ app.post('/api/telegram/webhook', async function(req, res) {
   var chatId = msg.chat && msg.chat.id;
   var sid    = (await getActiveSessionId()) || 'default';
 
-  // ---- DOCUMENT / PDF ----
+  // ---- ALL FILE TYPES ----
   if (msg.document) {
     var doc   = msg.document;
-    var fname = doc.file_name || 'document';
+    var fname = doc.file_name || 'file';
+    var fext  = fname.toLowerCase().split('.').pop();
+    var mime  = doc.mime_type || '';
     var cap   = (msg.caption && msg.caption.trim()) || '';
-
+    var isPDF    = fext === 'pdf' || mime === 'application/pdf';
+    var isImage  = ['jpg','jpeg','png','gif','webp','bmp','tiff'].indexOf(fext) > -1 || mime.indexOf('image/') === 0;
+    var isOffice = ['xlsx','xls','docx','doc','pptx','ppt'].indexOf(fext) > -1 || mime.indexOf('officedocument') > -1;
+    var isText   = ['txt','md','json','xml','csv'].indexOf(fext) > -1 || mime.indexOf('text/') === 0;
     try {
-      // Get Telegram file path
       var fi = await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/getFile?file_id=' + doc.file_id);
       var fd = await fi.json();
-      if (!fd.ok) throw new Error('Cannot get file from Telegram');
-
-      // Download file
-      var fileURL = 'https://api.telegram.org/file/bot' + process.env.TELEGRAM_BOT_TOKEN + '/' + fd.result.file_path;
-      var ctrl = new AbortController();
-      setTimeout(function() { ctrl.abort(); }, 20000);
-      var fileResp = await fetch(fileURL, { signal: ctrl.signal });
-      if (!fileResp.ok) throw new Error('Download failed');
-      var buffer = Buffer.from(await fileResp.arrayBuffer());
+      if (!fd.ok) throw new Error('Cannot get file');
+      var dlCtrl = new AbortController(); setTimeout(function(){ dlCtrl.abort(); }, 20000);
+      var dlResp = await fetch('https://api.telegram.org/file/bot' + process.env.TELEGRAM_BOT_TOKEN + '/' + fd.result.file_path, { signal: dlCtrl.signal });
+      if (!dlResp.ok) throw new Error('Download failed');
+      var buffer = Buffer.from(await dlResp.arrayBuffer());
       var b64 = buffer.toString('base64');
-      var isPDF = fname.toLowerCase().endsWith('.pdf') || doc.mime_type === 'application/pdf';
+      var summary = ''; var method = '';
 
-      var summary = '';
-      var method  = '';
-
-      // ---- LEVEL 1: Try direct text extraction ----
-      var fileText = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
-      // Count actual words (3+ letter sequences) ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ binary PDFs have scattered chars, not real words
-      var words = (fileText.match(/[a-zA-Z\u0400-\u04FF]{3,}/g) || []);
-      var wordDensity = words.length / Math.max(1, buffer.length / 100);
-      var hasRealText = words.length > 80 && wordDensity > 1.5;
-
-      // Skip analysis for office/spreadsheet formats
-      var isOfficeFmt = /\.(xlsx|xls|docx|doc|pptx|ppt)$/i.test(fname) ||
-        (doc.mime_type && doc.mime_type.indexOf('officedocument') > -1);
-      if (isOfficeFmt) {
-        summary = 'Saved "' + fname + '"' + (cap ? '\nNote: ' + cap : '') +
-          '\n\nThis is a spreadsheet/office file - I cannot read the contents directly.\n' +
-          'To share: export as .csv or .txt and send that file, or paste the key data as a message.';
-        isPDF = false;
+      if (isImage) {
+        method = 'image vision';
+        var imgMime = mime || ('image/' + (fext === 'jpg' ? 'jpeg' : fext));
+        var iCtrl = new AbortController(); setTimeout(function(){ iCtrl.abort(); }, 25000);
+        var iR = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 600, messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: imgMime, data: b64 } },
+            { type: 'text', text: 'Describe what you see. If it shows products, suppliers, prices, booth numbers: extract all details.' + (cap ? ' Note: ' + cap : '') }
+          ]}] }), signal: iCtrl.signal });
+        var iD = await iR.json(); summary = iD.content && iD.content[0] && iD.content[0].text || '';
+      } else if (isText) {
+        method = 'text';
+        var txtRaw = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
+        summary = await core.callAI([{ role: 'user', content: 'Analyse this file, extract supplier names, products, prices, contacts: ' + txtRaw.slice(0,5000) }], TG_SYSTEM, 600, 18000);
+      } else if (isOffice) {
+        method = 'office';
+        var rawTxt = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ');
+        var extracted = (rawTxt.match(/[a-zA-Z0-9\u0400-\u04FF]{3,}/g) || []).join(' ');
+        if (extracted.length > 200) {
+          method = 'office (text)';
+          summary = await core.callAI([{ role: 'user', content: 'Text from a ' + fext + ' file. Extract business info: ' + extracted.slice(0,4000) }], TG_SYSTEM, 600, 18000);
+        } else {
+          summary = 'Saved "' + fname + '"' + (cap ? '\nNote: ' + cap : '') + '\n\n' + fext.toUpperCase() + ' file - cannot read binary content.\nTo share: export as .csv or .txt and send that, or paste the key data as a message.';
+        }
+      } else if (isPDF) {
+        var pTxt = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g,' ');
+        var wc = (pTxt.match(/[a-zA-Z\u0400-\u04FF]{3,}/g)||[]).length;
+        if (wc > 80 && wc/Math.max(1,buffer.length/100) > 1.5) { method='PDF text'; summary=await core.callAI([{role:'user',content:'Analyse document key facts dates rules contacts: '+pTxt.slice(0,5000)}],TG_SYSTEM,700,22000); }
+        if (!summary) {
+          method='PDF vision';
+          var pCtrl=new AbortController(); setTimeout(function(){pCtrl.abort();},40000);
+          try {
+            var pR=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},{type:'text',text:'Summarise for Canton Fair team. Bold headers, bullet points. Key facts and actions.'+(cap?' Note: '+cap:'')}]}]}),signal:pCtrl.signal});
+            var pD=await pR.json(); var ps=pD.content&&pD.content[0]&&pD.content[0].text||''; if(ps.length>50)summary=ps;
+          } catch(pe){}
+        }
+        if (!summary && process.env.GOOGLE_API_KEY) {
+          method='OCR';
+          try {
+            var oR=await fetch('https://vision.googleapis.com/v1/images:annotate?key='+process.env.GOOGLE_API_KEY,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requests:[{image:{content:b64.slice(0,4000000)},features:[{type:'DOCUMENT_TEXT_DETECTION'}]}]})});
+            var oD=await oR.json(); var oT=oD.responses&&oD.responses[0]&&oD.responses[0].fullTextAnnotation&&oD.responses[0].fullTextAnnotation.text||'';
+            if(oT.length>100)summary=await core.callAI([{role:'user',content:'Analyse OCR text: '+oT.slice(0,4000)}],TG_SYSTEM,600,18000);
+          } catch(oe){}
+        }
       }
-
-      if (hasRealText) {
-        method = 'text (Haiku)';
-        var prompt = 'Analyse this document for a Telegram group. Use ONLY Telegram formatting: *bold* for section headers, plain - for bullet points. Structure: *What it is* (1 line), *Key facts* (- bullets), *Action items* (- bullets). Document: ' + fileText.slice(0, 5000);
-        summary = await core.callAI([{ role: 'user', content: prompt }], TG_SYSTEM, 700, 25000);
-      }
-
-      // ---- LEVEL 2: Claude Sonnet PDF vision (handles scanned PDFs as images) ----
-      if (!summary && isPDF) {
-        method = 'PDF vision (Sonnet)';
-        var ctrl2 = new AbortController();
-        setTimeout(function() { ctrl2.abort(); }, 40000);
-        try {
-          var r2 = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-            body: JSON.stringify({
-              model: 'claude-sonnet-4-20250514',
-              max_tokens: 1000,
-              messages: [{
-                role: 'user',
-                content: [
-                  { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
-                  { type: 'text', text: 'Read this document and summarise it for a Telegram group. Use ONLY Telegram-compatible formatting: *bold* for headers (not ** or ##), plain - for bullet points, no markdown tables. Structure: *What it is* (1 line), then *Key facts* (dates, locations, rules as - bullets), then *Action items* (- bullets). Be thorough but scannable.' + (cap ? ' Sender note: ' + cap : '') }
-                ]
-              }]
-            }),
-            signal: ctrl2.signal
-          });
-          var r2d = await r2.json();
-          summary = r2d.content && r2d.content[0] && r2d.content[0].text || '';
-          if (summary && summary.length < 50) summary = ''; // too short = failed
-        } catch(e2) { console.error('[PDF Sonnet]', e2.message); }
-      }
-
-      // ---- LEVEL 3: Google Vision OCR (last resort for image PDFs) ----
-      if (!summary && isPDF && process.env.GOOGLE_API_KEY) {
-        method = 'OCR (Google Vision)';
-        try {
-          // Google Vision can OCR a PDF stored in GCS, but we can also send as base64 image
-          // We'll send the raw PDF bytes asking for DOCUMENT_TEXT_DETECTION
-          var visionR = await fetch('https://vision.googleapis.com/v1/files:asyncBatchAnnotate?key=' + process.env.GOOGLE_API_KEY, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              requests: [{
-                inputConfig: { content: b64, mimeType: 'application/pdf' },
-                features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
-                outputConfig: { gcsDestination: { uri: 'gs://not-used' }, batchSize: 1 }
-              }]
-            })
-          });
-          // Sync fallback: try Vision API with the first chunk as an image annotation
-          var visionR2 = await fetch('https://vision.googleapis.com/v1/images:annotate?key=' + process.env.GOOGLE_API_KEY, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              requests: [{
-                image: { content: b64.slice(0, 4000000) }, // Vision limit ~4MB
-                features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }]
-              }]
-            })
-          });
-          var vd = await visionR2.json();
-          var ocrText = vd.responses && vd.responses[0] && vd.responses[0].fullTextAnnotation && vd.responses[0].fullTextAnnotation.text || '';
-          if (ocrText && ocrText.length > 100) {
-            var ocrPrompt = 'Analyse this OCR-extracted document text for a Telegram group. Use ONLY Telegram formatting: *bold* for headers, plain - for bullets. Structure: *What it is* (1 line), *Key facts* (- bullets), *Actions* (- bullets). Text: ' + ocrText.slice(0, 5000);
-            summary = await core.callAI([{ role: 'user', content: ocrPrompt }], TG_SYSTEM, 700, 20000);
-          }
-        } catch(e3) { console.error('[PDF OCR]', e3.message); }
-      }
-
-      // ---- FALLBACK: save with caption, ask for text version ----
-      if (!summary) {
-        method = 'fallback';
-        summary = 'Saved "' + fname + '"' + (cap ? '\nNote: ' + cap : '') + '\n\nCould not read file contents. To share: export as .csv or .txt and send, or paste the key info as a message.';
-      }
-
-      // Save to memory (always, regardless of method)
-      var memContent = 'Document "' + fname + '" from ' + from + (cap ? '. Note: ' + cap : '') + '. Read via: ' + method + '. Summary: ' + summary.slice(0, 900);
-      await core.saveCorrection(memContent, null, 'doc_' + fname.replace(/[^a-z0-9]/gi, '_').slice(0, 40));
-      await supabase.from('catalogue_uploads').insert({ filename: fname, session_id: sid, analysis_status: method !== 'fallback' ? 'done' : 'failed', products_extracted: 0, summary: summary.slice(0, 2000), raw_analysis: { caption: cap, from: from, method: method, size: doc.file_size } });
-
-      // Clean up any non-Telegram markdown before sending
-      var reply = summary
-        .replace(/^#{1,3}\s*/gm, '')           // remove ## headers
-        .replace(/\*\*([^*]+)\*\*/g, '*$1*')  // convert **bold** to *bold*
-        .replace(/^\s*[ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ·]/gm, '-')             // convert bullet symbols to -
-        .slice(0, 3900);
-      if (method && method !== 'fallback') reply = reply + '\n\n_(' + method + ')_';
+      if (!summary) { method='fallback'; summary='Saved "'+fname+'"'+(cap?'\nNote: '+cap:'')+'\n\nCould not read file. Try PDF, image, CSV, or TXT, or paste the key info directly.'; }
+      var reply = summary.replace(/^#{1,3}\s*/gm,'').replace(/\*\*([^*]+)\*\*/g,'*$1*').replace(/^\s*[*\u2022]/gm,'-').slice(0,3900);
+      if (method !== 'fallback') reply = reply + '\n_(' + method + ')_';
+      await core.saveCorrection('File "'+fname+'" from '+from+(cap?'. Note: '+cap:'')+'. Summary: '+summary.slice(0,500), null, 'file_'+fname.replace(/[^a-z0-9]/gi,'_').slice(0,30));
+      await supabase.from('catalogue_uploads').insert({filename:fname,session_id:sid,analysis_status:method!=='fallback'?'done':'failed',products_extracted:0,summary:summary.slice(0,2000),raw_analysis:{caption:cap,from:from,method:method,mime:mime,size:doc.file_size}});
       await tgSend(chatId, reply, msg.message_id);
-      await core.saveMessage(sid, 'user', from + ' sent: ' + fname, null, 'telegram', from);
-      await core.saveMessage(sid, 'assistant', reply, null, 'telegram', 'Valeran');
-
-    } catch(e) {
-      console.error('[TG doc]', e.message);
-      await tgSend(chatId, 'Could not process "' + fname + '": ' + e.message, msg.message_id);
-    }
-
-    res.sendStatus(200);
-    return;
+      await core.saveMessage(sid,'user',from+' sent: '+fname,null,'telegram',from);
+      await core.saveMessage(sid,'assistant',reply,null,'telegram','Valeran');
+    } catch(e){ console.error('[TG file]',e.message); await tgSend(chatId,'Could not process "'+fname+'": '+e.message,msg.message_id); }
+    res.sendStatus(200); return;
   }
 
   // ---- VOICE (Telegram) ----
-  // Voice messages ALWAYS get a response ÃÂ¢ÃÂÃÂ no trigger word needed
+  // Voice messages ALWAYS get a response ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ no trigger word needed
   if (msg.voice || msg.audio) {
     var vf = msg.voice || msg.audio;
     try {
@@ -515,7 +451,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
   var text = (msg.text && msg.text.trim()) || '';
   if (!text) { res.sendStatus(200); return; }
 
-  // Strict: must start with 'Valeran,' or 'Valera,' (with separator) — prevents matching 'Valentina' etc
+  // Strict: must start with 'Valeran,' or 'Valera,' (with separator) â prevents matching 'Valentina' etc
   var isPrefix  = /^(valeran|valera)[,\s!?.]/i.test(text) || /^\u0432\u0430\u043b\u0435\u0440\u0430[,\s!?.]/i.test(text);
   var isMention = text.indexOf('@ValeranSV_bot') > -1;
 
@@ -530,7 +466,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
   if (msg.reply_to_message && msg.reply_to_message.text) {
     var rFrom = (msg.reply_to_message.from && msg.reply_to_message.from.first_name) || 'someone';
     var isBot = !!(msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
-    var ctx = isBot ? '[Context ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
+    var ctx = isBot ? '[Context ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
     query = ctx + '\n' + from + ' asks: ' + query;
   }
 
