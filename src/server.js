@@ -53,13 +53,30 @@ app.post('/api/chat/message', requireAuth, async (req, res) => {
 
   const session = session_id || await getActiveSessionId();
 
-  const result = await processMessage({
-    text,
-    partnerId: req.partner.id,
-    sessionId: session
-  });
-
-  res.json(result);
+  const result = (async () => {
+    const sid = session || 'default';
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25000);
+    try {
+      await supabase.from('chat_messages').insert({ session_id: sid, partner_id: req.partner?.id || null, role: 'user', content: text });
+      const ar = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 600, messages: [{ role: 'user', content: 'You are Valeran, AI assistant for Synergy Ventures at Canton Fair 2026. Be concise and practical. Max 200 words. Detect language and respond in same language (English/Russian/Bulgarian).\n\nMessage: ' + text }] }),
+        signal: ctrl.signal
+      });
+      clearTimeout(timer);
+      const ad = await ar.json();
+      const reply = ad?.content?.[0]?.text || 'Sorry, could not process that. Try again.';
+      await supabase.from('chat_messages').insert({ session_id: sid, partner_id: null, role: 'assistant', content: reply });
+      res.json({ reply, session_id: sid });
+    } catch(e) {
+      clearTimeout(timer);
+      if (e.name === 'AbortError') return res.json({ reply: 'Taking longer than expected — please try again.', session_id: sid });
+      console.error('Chat error:', e);
+      res.status(500).json({ error: e.message });
+    }
+  })();
 });
 
 // ============================================================
@@ -374,7 +391,7 @@ async function getActiveSessionId(date) {
 
 
 // ============================================================
-// TELEGRAM WEBHOOK Ã¢ÂÂ receive messages from group
+// TELEGRAM WEBHOOK ÃÂ¢ÃÂÃÂ receive messages from group
 // ============================================================
 app.post('/api/telegram/webhook', async (req, res) => {
   res.sendStatus(200);
@@ -404,7 +421,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: msg.chat.id,
-        text: 'Ã°ÂÂ¤Â ' + response.content[0].text,
+        text: 'ÃÂ°ÃÂÃÂ¤ÃÂ ' + response.content[0].text,
         reply_to_message_id: msg.message_id
       })
     });
