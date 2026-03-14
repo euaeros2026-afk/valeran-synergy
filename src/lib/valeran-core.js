@@ -100,7 +100,7 @@ async function extractEntities(text, partnerId, sessionId) {
       await supabase.from('suppliers').upsert({ name: data.supplier.name, hall: data.supplier.hall, booth_number: data.supplier.booth_number, contact_person: data.supplier.contact_person, session_id: sessionId, created_by: partnerId }, { onConflict: 'name', ignoreDuplicates: true });
     }
     if (data.has_product && data.product && data.product.name) {
-      await supabase.from('products').insert({ name: data.product.name, buy_price_usd: data.product.buy_price_usd, notes: data.product.notes, session_id: sessionId, created_by: partnerId });
+      await supabase.from('products').insert({ product_name: data.product.name, buy_price_usd: data.product.buy_price_usd, notes: data.product.notes, session_id: sessionId, created_by: partnerId });
     }
   } catch(e) {}
 }
@@ -161,12 +161,12 @@ async function analyseCatalogue(content, supplierId, sessionId, uploadId) {
   for (var i = 0; i < products.length; i++) {
     var p = products[i];
     if (p && p.name) {
-      await supabase.from('products').insert({ name: p.name, notes: [p.description, p.materials, p.notes].filter(Boolean).join(' | '), buy_price_usd: p.price_usd || null, supplier_id: supplierId || null, session_id: sessionId || 'default', category: 'Catalogue Import' }).catch(function() {});
+      await supabase.from('products').insert({ product_name: p.name, notes: [p.description, p.materials, p.notes].filter(Boolean).join(' | '), buy_price_usd: p.price_usd || null, supplier_id: supplierId || null, fair_session_id: null, category: 'Catalogue Import' }).catch(function() {});
     }
   }
   var summary = await callAI([{ role: 'user', content: 'Summarise this supplier catalogue for a Telegram group. Format: *SUPPLIER OVERVIEW* line, then • bullet points for top products with price ranges and MOQ where available, then • key advantages. Use *Bold* for section titles, • for bullets. Max 200 words. No ## headers, no language prefix labels. Content: ' + content.slice(0, 2000) }], BASE_SYSTEM, 200, 12000) || 'Catalogue analysed.';
   if (uploadId) {
-    await supabase.from('catalogue_uploads').update({ analysis_status: 'done', products_extracted: products.length, summary: summary, supplier_id: supplierId || null }).eq('id', uploadId);
+    await supabase.from('catalogue_uploads').update({ analysis_status: 'done', products_extracted: products.length, summary: summary.slice(0,2000), supplier_id: supplierId || null }).eq('id', uploadId);
   }
   return { products: products, summary: summary, count: products.length };
 }
