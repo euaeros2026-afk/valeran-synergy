@@ -8,7 +8,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 const SCRAPER_KEY = process.env.SCRAPERAPI_KEY || process.env.SCRAPER_API_KEY;
 
 // ============================================================
-// SCRAPE AMAZON.DE — EU competitor data
+// SCRAPE AMAZON.DE â EU competitor data
 // ============================================================
 async function scrapeAmazonDE(searchQuery, productId) {
   if (!SCRAPER_KEY) { console.log('[scraper] No ScraperAPI key'); return []; }
@@ -16,7 +16,7 @@ async function scrapeAmazonDE(searchQuery, productId) {
     var url = 'https://www.amazon.de/s?k=' + encodeURIComponent(searchQuery) + '&language=en_GB';
     var scraperUrl = 'https://api.scraperapi.com/?api_key=' + SCRAPER_KEY + '&url=' + encodeURIComponent(url) + '&render=false&country_code=de';
 
-    var r = await fetch(scraperUrl, { signal: AbortSignal.timeout(30000) });
+    var r = await fetch(scraperUrl, { signal: AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined });
     if (!r.ok) { console.error('[scraper] Amazon DE status:', r.status); return []; }
     var html = await r.text();
 
@@ -33,7 +33,7 @@ async function scrapeAmazonDE(searchQuery, productId) {
     while ((m = priceRegex.exec(html)) !== null && prices.length < 10) prices.push(m[2]);
 
     for (var i = 0; i < Math.min(titles.length, 5); i++) {
-      var priceEur = prices[i] ? parseFloat(prices[i].replace(/[€,]/g, '').replace(',', '.')) : null;
+      var priceEur = prices[i] ? parseFloat(prices[i].replace(/[â¬,]/g, '').replace(',', '.')) : null;
       var result = {
         product_id: productId || null,
         platform: 'amazon_de',
@@ -57,7 +57,7 @@ async function scrapeAmazonDE(searchQuery, productId) {
 }
 
 // ============================================================
-// SCRAPE ALIBABA — China supply data
+// SCRAPE ALIBABA â China supply data
 // ============================================================
 async function scrapeAlibaba(searchQuery, productId) {
   if (!SCRAPER_KEY) return [];
@@ -65,7 +65,7 @@ async function scrapeAlibaba(searchQuery, productId) {
     var url = 'https://www.alibaba.com/trade/search?SearchText=' + encodeURIComponent(searchQuery) + '&IndexArea=product_en';
     var scraperUrl = 'https://api.scraperapi.com/?api_key=' + SCRAPER_KEY + '&url=' + encodeURIComponent(url) + '&render=false';
 
-    var r = await fetch(scraperUrl, { signal: AbortSignal.timeout(30000) });
+    var r = await fetch(scraperUrl, { signal: AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined });
     if (!r.ok) return [];
     var html = await r.text();
 
@@ -111,7 +111,7 @@ async function scrapeProductReviews(asin, productId) {
   try {
     var url = 'https://www.amazon.de/dp/' + asin + '?language=en_GB';
     var scraperUrl = 'https://api.scraperapi.com/?api_key=' + SCRAPER_KEY + '&url=' + encodeURIComponent(url);
-    var r = await fetch(scraperUrl, { signal: AbortSignal.timeout(30000) });
+    var r = await fetch(scraperUrl, { signal: AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined });
     if (!r.ok) return null;
     var html = await r.text();
 
@@ -144,7 +144,7 @@ async function scrapeProductReviews(asin, productId) {
 }
 
 // ============================================================
-// FULL PRODUCT RESEARCH — runs both EU + CN searches
+// FULL PRODUCT RESEARCH â runs both EU + CN searches
 // ============================================================
 async function researchProduct(productName, productId) {
   console.log('[scraper] Researching:', productName);
@@ -166,7 +166,7 @@ async function enrichAllProducts(sessionId) {
   var { data: products } = await supabase.from('products').select('id, name').eq('session_id', sessionId).limit(20);
   if (!products || products.length === 0) { console.log('[scraper] No products to enrich'); return; }
 
-  for (var p of products) {
+  var _arr = products; for (var _i = 0; _i < _arr.length; _i++) { var p = _arr[_i];
     if (p.name) {
       await researchProduct(p.name, p.id);
       await new Promise(function(resolve){ setTimeout(resolve, 3000); }); // rate limit
