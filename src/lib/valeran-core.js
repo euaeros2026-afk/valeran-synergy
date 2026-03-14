@@ -11,7 +11,7 @@ var BASE_SYSTEM = 'You are Valeran, the AI assistant for Synergy Ventures LLC-FZ
   'Margin formula: buy_usd x 0.92 = eur, x 1.12 freight, x 1.035 duty = landed. Net margin = (sell - landed - 15pct_fees - 10pct_ads) / sell. Target >35%. ' +
   'Sourcing: 1688 (cheapest), Alibaba (export), Taobao (CN retail), AliPrice (reverse image). EU: Amazon DE/UK/FR, eMAG Bulgaria/Romania. ' +
   'Compliance: CE (electronics/toys), RoHS (electronics), REACH (chemicals). Cost 500-5000 EUR per product. ' +
-  'LANGUAGE RULE - ABSOLUTE: detect input language and reply in EXACT same language. Bulgarian in = Bulgarian out. Russian in = Russian out. English in = English out. NEVER mix. ' +'NEVER start your reply with a language label like "Bulgarian:", "Russian:", "English:" — just reply directly in the correct language. ' +
+  'LANGUAGE RULE - ABSOLUTE: detect input language and reply in EXACT same language. Bulgarian in = Bulgarian out. Russian in = Russian out. English in = English out. NEVER mix. ' +'NEVER start your reply with a language label like "Bulgarian:", "Russian:", "English:" â just reply directly in the correct language. ' +
   'CONTEXT RULE: When message starts with [Context: ...] that is the replied-to message. USE IT FULLY. Never say you cannot see previous messages. ' +
   'TESTING MODE: Currently March 2026, testing before Canton Fair. Learn from all corrections. ' +
   'Personality: direct, confident, smart, practical. Max 200 words in Telegram unless full report. Can tell jokes.';
@@ -80,8 +80,9 @@ async function saveMessage(sessionId, role, content, partnerId, source, telegram
 }
 
 async function getChatHistory(sessionId) {
+  var sid = sessionId || 'team-chat';
   try {
-    var r = await supabase.from('chat_messages').select('role, content').eq('session_id', sessionId).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(12);
+    var r = await supabase.from('chat_messages').select('role, content, telegram_user').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(12);
     return (r.data || []).reverse();
   } catch(e) { return []; }
 }
@@ -105,11 +106,12 @@ async function extractEntities(text, partnerId, sessionId) {
 async function processMessage(opts) {
   var text = opts.text;
   var partnerId = opts.partnerId;
-  var sessionId = opts.sessionId || 'default';
+  var sessionId = opts.sessionId || 'team-chat';
+  var senderName = opts.senderName || null;
   if (!text) return { responded: false };
   var triggered = isValeranCalled(text);
   var isCorrection = /that.s wrong|wrong answer|incorrect|mistake|\u043d\u0435 \u0435 \u0432\u044f\u0440\u043d\u043e|\u0433\u0440\u0435\u0448\u043a\u0430|\u043d\u0435\u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u043e|\u043e\u0448\u0438\u0431\u043a\u0430/i.test(text);
-  await saveMessage(sessionId, 'user', text, partnerId, 'web', null);
+  await saveMessage(sessionId, 'user', text, partnerId, 'web', senderName);
   if (isCorrection) {
     var corrText = text.replace(/^(valeran|valera)[,\s!?]*/i, '').trim();
     await saveCorrection('User correction: ' + corrText, partnerId, 'user_correction');
