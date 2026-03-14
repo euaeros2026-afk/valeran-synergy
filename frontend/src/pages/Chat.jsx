@@ -62,8 +62,11 @@ export default function Chat({ supabase, partner }) {
 
     const ch = supabase.channel('chat_realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, payload => {
+        // Filter client-side for team-chat session (no server filter = more reliable)
+        if (payload.new.session_id !== 'team-chat') return;
         setMessages(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new])
-      }).subscribe()
+      })
+      .subscribe(status => { console.log('[realtime]', status); })
 
     window.addEventListener('beforeunload', markOffline)
     return () => {
@@ -134,7 +137,7 @@ export default function Chat({ supabase, partner }) {
     try {
       const t = await getToken()
       if (isValeranCall) {
-        // Ask Valeran â uses AI
+        // Ask Valeran Ã¢ÂÂ uses AI
         const r = await fetch(API + '/api/chat/message', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text, session_id: 'team-chat' }) })
         const d = await r.json()
         setMessages(p => {
@@ -144,7 +147,7 @@ export default function Chat({ supabase, partner }) {
           return f
         })
       } else {
-        // Team message â no AI, just save and show
+        // Team message Ã¢ÂÂ no AI, just save and show
         await fetch(API + '/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text, session_id: 'team-chat' }) })
         setMessages(p => {
           const f = p.filter(m => m.id !== tempId)
@@ -164,13 +167,13 @@ export default function Chat({ supabase, partner }) {
     const fd = new FormData(); fd.append('photo', file)
     if (input.trim()) { fd.append('caption', input); setInput('') }
     const tempId = 'tmp-ph-' + Date.now()
-    setMessages(p => [...p, { id: tempId, role: 'user', content: 'ð· ' + file.name, telegram_user: myName, created_at: new Date().toISOString() }])
+    setMessages(p => [...p, { id: tempId, role: 'user', content: 'Ã°ÂÂÂ· ' + file.name, telegram_user: myName, created_at: new Date().toISOString() }])
     try {
       const r = await fetch(API + '/api/chat/photo', { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd })
       const d = await r.json()
       setMessages(p => {
         const f = p.filter(m => m.id !== tempId)
-        f.push({ id: 'u-p-' + Date.now(), role: 'user', content: 'ð· ' + file.name, telegram_user: myName, created_at: new Date().toISOString() })
+        f.push({ id: 'u-p-' + Date.now(), role: 'user', content: 'Ã°ÂÂÂ· ' + file.name, telegram_user: myName, created_at: new Date().toISOString() })
         if (d.reply) f.push({ id: 'a-p-' + Date.now(), role: 'assistant', content: d.reply, created_at: new Date().toISOString() })
         return f
       })
@@ -183,13 +186,13 @@ export default function Chat({ supabase, partner }) {
     const t = await getToken()
     const fd = new FormData(); fd.append('file', file)
     const tempId = 'tmp-f-' + Date.now()
-    setMessages(p => [...p, { id: tempId, role: 'user', content: 'ð ' + file.name + ' â analysing...', telegram_user: myName, created_at: new Date().toISOString() }])
+    setMessages(p => [...p, { id: tempId, role: 'user', content: 'Ã°ÂÂÂ ' + file.name + ' Ã¢ÂÂ analysing...', telegram_user: myName, created_at: new Date().toISOString() }])
     try {
       const r = await fetch(API + '/api/catalogue/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd })
       const d = await r.json()
       setMessages(p => {
         const f = p.filter(m => m.id !== tempId)
-        f.push({ id: 'u-f-' + Date.now(), role: 'user', content: 'ð ' + file.name, telegram_user: myName, created_at: new Date().toISOString() })
+        f.push({ id: 'u-f-' + Date.now(), role: 'user', content: 'Ã°ÂÂÂ ' + file.name, telegram_user: myName, created_at: new Date().toISOString() })
         if (d.message) f.push({ id: 'a-f-' + Date.now(), role: 'assistant', content: d.message, created_at: new Date().toISOString() })
         return f
       })
@@ -215,13 +218,13 @@ export default function Chat({ supabase, partner }) {
         const fd = new FormData(); fd.append('audio', blob, 'voice.webm')
         setSending(true)
         const tempId = 'tmp-v-' + Date.now()
-        setMessages(p => [...p, { id: tempId, role: 'user', content: 'ð¤ ...', telegram_user: myName, created_at: new Date().toISOString() }])
+        setMessages(p => [...p, { id: tempId, role: 'user', content: 'Ã°ÂÂÂ¤ ...', telegram_user: myName, created_at: new Date().toISOString() }])
         try {
           const r = await fetch(API + '/api/chat/voice', { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd })
           const d = await r.json()
           setMessages(p => {
             const f = p.filter(m => m.id !== tempId)
-            if (d.transcript) f.push({ id: 'v-u-' + Date.now(), role: 'user', content: 'ð¤ "' + d.transcript + '"', telegram_user: myName, created_at: new Date().toISOString() })
+            if (d.transcript) f.push({ id: 'v-u-' + Date.now(), role: 'user', content: 'Ã°ÂÂÂ¤ "' + d.transcript + '"', telegram_user: myName, created_at: new Date().toISOString() })
             if (d.reply) f.push({ id: 'v-a-' + Date.now(), role: 'assistant', content: d.reply, created_at: new Date().toISOString() })
             return f
           })
@@ -280,16 +283,16 @@ export default function Chat({ supabase, partner }) {
 
           {/* Phase timeline */}
           <div className="dash-card">
-            <div className="dash-card-title">Canton Fair 2026 Â· 139th Session</div>
+            <div className="dash-card-title">Canton Fair 2026 ÃÂ· 139th Session</div>
             {[
-              { phase: 'Phase 1', dates: 'Apr 15â19', cats: 'Electronics, Hardware, Lighting, Tools, Smart Home', color: '#e8a045' },
-              { phase: 'Phase 2', dates: 'Apr 23â27', cats: 'Home Goods, Ceramics, Furniture, Gifts, Garden', color: '#7c6af7' },
-              { phase: 'Phase 3', dates: 'May 1â5',   cats: 'Fashion, Textiles, Toys, Personal Care, Food',  color: '#4ade80' },
+              { phase: 'Phase 1', dates: 'Apr 15Ã¢ÂÂ19', cats: 'Electronics, Hardware, Lighting, Tools, Smart Home', color: '#e8a045' },
+              { phase: 'Phase 2', dates: 'Apr 23Ã¢ÂÂ27', cats: 'Home Goods, Ceramics, Furniture, Gifts, Garden', color: '#7c6af7' },
+              { phase: 'Phase 3', dates: 'May 1Ã¢ÂÂ5',   cats: 'Fashion, Textiles, Toys, Personal Care, Food',  color: '#4ade80' },
             ].map(ph => (
               <div key={ph.phase} style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'flex-start' }}>
                 <div style={{ width: 4, borderRadius: 4, background: ph.color, alignSelf: 'stretch', flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: ph.color }}>{ph.phase} Â· {ph.dates}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: ph.color }}>{ph.phase} ÃÂ· {ph.dates}</div>
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>{ph.cats}</div>
                 </div>
               </div>
@@ -300,11 +303,11 @@ export default function Chat({ supabase, partner }) {
           <div className="dash-card">
             <div className="dash-card-title">Team</div>
             {[
-              { name: 'Alexander Oslan', role: 'Owner Â· Strategy', lang: 'EN' },
-              { name: 'Ina Kanaplianikava', role: 'Partner Â· Quality & Suppliers', lang: 'RU' },
-              { name: 'Konstantin Khoch', role: 'Partner Â· Negotiations', lang: 'RU' },
-              { name: 'Konstantin Ganev', role: 'Partner Â· Logistics', lang: 'BG' },
-              { name: 'Slavi Mikinski', role: 'Observer Â· Remote', lang: 'BG' },
+              { name: 'Alexander Oslan', role: 'Owner ÃÂ· Strategy', lang: 'EN' },
+              { name: 'Ina Kanaplianikava', role: 'Partner ÃÂ· Quality & Suppliers', lang: 'RU' },
+              { name: 'Konstantin Khoch', role: 'Partner ÃÂ· Negotiations', lang: 'RU' },
+              { name: 'Konstantin Ganev', role: 'Partner ÃÂ· Logistics', lang: 'BG' },
+              { name: 'Slavi Mikinski', role: 'Observer ÃÂ· Remote', lang: 'BG' },
             ].map(m => {
               var online = presence.find(function(p) { return p.name && p.name.toLowerCase().indexOf(m.name.split(' ')[0].toLowerCase()) > -1 && p.is_online })
               return (
@@ -312,10 +315,10 @@ export default function Chat({ supabase, partner }) {
                   <Avatar name={m.name} size={32} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</div>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{m.role} Â· {m.lang}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{m.role} ÃÂ· {m.lang}</div>
                   </div>
                   <div style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: online ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.06)', color: online ? '#4ade80' : 'rgba(255,255,255,0.3)', border: '1px solid ' + (online ? 'rgba(74,222,128,0.3)' : 'transparent') }}>
-                    {online ? 'â online' : 'offline'}
+                    {online ? 'Ã¢ÂÂ online' : 'offline'}
                   </div>
                 </div>
               )
@@ -325,21 +328,21 @@ export default function Chat({ supabase, partner }) {
           {/* Venue */}
           <div className="dash-card">
             <div className="dash-card-title">Venue & Contacts</div>
-            <div className="dash-info-row"><span>ð</span><span>Pazhou Complex, No.380 Yuejiang Zhong Rd, Guangzhou</span></div>
-            <div className="dash-info-row"><span>ð¡ï¸</span><span>April weather: 22â28Â°C, humid, frequent rain â bring umbrella</span></div>
-            <div className="dash-info-row"><span>ð</span><span>CFTC Hotline: 4000-888-999 (CN) / +86-20-28-888-999</span></div>
-            <div className="dash-info-row"><span>ð</span><span>cantonfair.org.cn Â· Canton Fair APP</span></div>
-            <div className="dash-info-row"><span>âï¸</span><span>Register at: Airport Â· South Station Â· Pazhou Ferry Â· Designated Hotels</span></div>
+            <div className="dash-info-row"><span>Ã°ÂÂÂ</span><span>Pazhou Complex, No.380 Yuejiang Zhong Rd, Guangzhou</span></div>
+            <div className="dash-info-row"><span>Ã°ÂÂÂ¡Ã¯Â¸Â</span><span>April weather: 22Ã¢ÂÂ28ÃÂ°C, humid, frequent rain Ã¢ÂÂ bring umbrella</span></div>
+            <div className="dash-info-row"><span>Ã°ÂÂÂ</span><span>CFTC Hotline: 4000-888-999 (CN) / +86-20-28-888-999</span></div>
+            <div className="dash-info-row"><span>Ã°ÂÂÂ</span><span>cantonfair.org.cn ÃÂ· Canton Fair APP</span></div>
+            <div className="dash-info-row"><span>Ã¢ÂÂÃ¯Â¸Â</span><span>Register at: Airport ÃÂ· South Station ÃÂ· Pazhou Ferry ÃÂ· Designated Hotels</span></div>
           </div>
 
           {/* Margin target */}
           <div className="dash-card">
             <div className="dash-card-title">Margin Formula</div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 }}>
-              <div>Landed = buy Ã 1.12 (freight) Ã 1.035 (duty)</div>
-              <div>Net margin = (sell â landed â 15% fees â 10% ads) Ã· sell</div>
+              <div>Landed = buy ÃÂ 1.12 (freight) ÃÂ 1.035 (duty)</div>
+              <div>Net margin = (sell Ã¢ÂÂ landed Ã¢ÂÂ 15% fees Ã¢ÂÂ 10% ads) ÃÂ· sell</div>
               <div style={{ marginTop: 6, color: '#4ade80', fontWeight: 600 }}>Target: &gt;35% net margin</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Example: buy $4 â â¬3.65 â landed â¬4.24 â sell â¬18 â margin 51% â</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Example: buy $4 Ã¢ÂÂ Ã¢ÂÂ¬3.65 Ã¢ÂÂ landed Ã¢ÂÂ¬4.24 Ã¢ÂÂ sell Ã¢ÂÂ¬18 Ã¢ÂÂ margin 51% Ã¢ÂÂ</div>
             </div>
           </div>
         </div>
@@ -351,7 +354,7 @@ export default function Chat({ supabase, partner }) {
           <div className="messages-list">
             {/* Hint */}
             <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.25)', padding: '8px 0 4px' }}>
-              Type "Valeran, ..." to ask the AI Â· Otherwise messages go to the team
+              Type "Valeran, ..." to ask the AI ÃÂ· Otherwise messages go to the team
             </div>
 
             {messages.map(msg => {
@@ -381,7 +384,7 @@ export default function Chat({ supabase, partner }) {
                 <div className="bubble valeran-bubble typing"><span/><span/><span/></div>
               </div>
             )}
-            {error && <div className="chat-error">â ï¸ {error}</div>}
+            {error && <div className="chat-error">Ã¢ÂÂ Ã¯Â¸Â {error}</div>}
             <div ref={bottomRef} />
           </div>
 
@@ -394,7 +397,7 @@ export default function Chat({ supabase, partner }) {
             <input className="chat-input" value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-              placeholder='Message team Â· "Valeran, â¦" for AI'
+              placeholder='Message team ÃÂ· "Valeran, Ã¢ÂÂ¦" for AI'
               disabled={sending || recording} />
             <button className={'input-action-btn mic-btn ' + (recording ? 'recording' : '')}
               onMouseDown={startRecording} onMouseUp={stopRecording}
