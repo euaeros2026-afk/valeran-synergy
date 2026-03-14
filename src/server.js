@@ -44,7 +44,7 @@ app.post('/api/chat/message', requireAuth, async function(req, res) {
   try {
     var result = await core.processMessage({ text: req.body.text, partnerId: req.partner && req.partner.id, sessionId: sid });
     res.json({ reply: result.reply || 'Noted.', session_id: sid, responded: result.responded });
-  } catch(e) { res.json({ reply: 'Error ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ try again.', session_id: sid }); }
+  } catch(e) { res.json({ reply: 'Error ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ try again.', session_id: sid }); }
 });
 
 app.get('/api/chat/messages', requireAuth, async function(req, res) {
@@ -235,7 +235,7 @@ var TG_SYSTEM = 'You are Valeran, AI assistant for Synergy Ventures at Canton Fa
   'Team: Alexander (EN), Ina (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi (BG). ' +
   'LANGUAGE: reply in exact same language as the message. BG=BG, RU=RU, EN=EN. Never mix. ' +
   'STYLE: short and direct. 1-3 sentences for simple questions. No fluff. ' +
-  'Use [Context:...] when present ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ that is what someone replied to.';
+  'Use [Context:...] when present ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ that is what someone replied to.';
 
 async function tgSend(chatId, text, replyToId) {
   var body = { chat_id: chatId, text: text.slice(0, 4000) };
@@ -248,8 +248,8 @@ async function tgSend(chatId, text, replyToId) {
 // ---- TELEGRAM WEBHOOK ----
 // CRITICAL: ALL work happens BEFORE res.sendStatus(200).
 // Vercel kills async code after res.send().
-// For documents: takes 10-20s ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Telegram retries after 5s (harmless).
-// For text: takes 3-5s ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ within Telegram's window.
+// For documents: takes 10-20s ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Telegram retries after 5s (harmless).
+// For text: takes 3-5s ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ within Telegram's window.
 
 app.post('/api/telegram/webhook', async function(req, res) {
   var body = req.body || {};
@@ -287,7 +287,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
 
       // ---- LEVEL 1: Try direct text extraction ----
       var fileText = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
-      // Count actual words (3+ letter sequences) Ã¢ÂÂ binary PDFs have scattered chars, not real words
+      // Count actual words (3+ letter sequences) ÃÂ¢ÃÂÃÂ binary PDFs have scattered chars, not real words
       var words = (fileText.match(/[a-zA-Z\u0400-\u04FF]{3,}/g) || []);
       var wordDensity = words.length / Math.max(1, buffer.length / 100);
       var hasRealText = words.length > 80 && wordDensity > 1.5;
@@ -366,11 +366,11 @@ app.post('/api/telegram/webhook', async function(req, res) {
       // ---- FALLBACK: save with caption, ask for text version ----
       if (!summary) {
         method = 'fallback';
-        summary = 'Saved "' + fname + '" ÃÂ¢ÃÂÃÂ' +
+        summary = 'Saved "' + fname + '" ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ' +
           (cap ? '\nYour note: ' + cap : '') +
-          '\n\nThis PDF contains only scanned images ÃÂ¢ÃÂÃÂ no readable text layer. To make it work:\n' +
-          '1. Open on PC ÃÂ¢ÃÂÃÂ upload to Google Drive ÃÂ¢ÃÂÃÂ right-click ÃÂ¢ÃÂÃÂ Open with Google Docs (auto-OCR)\n' +
-          '2. Download as .txt ÃÂ¢ÃÂÃÂ send me that file\n' +
+          '\n\nThis PDF contains only scanned images ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ no readable text layer. To make it work:\n' +
+          '1. Open on PC ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ upload to Google Drive ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ right-click ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Open with Google Docs (auto-OCR)\n' +
+          '2. Download as .txt ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ send me that file\n' +
           'Or just tell me the key info in a message and I will remember it.';
       }
 
@@ -383,7 +383,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
       var reply = summary
         .replace(/^#{1,3}\s*/gm, '')           // remove ## headers
         .replace(/\*\*([^*]+)\*\*/g, '*$1*')  // convert **bold** to *bold*
-        .replace(/^\s*[â¢Â·]/gm, '-')             // convert bullet symbols to -
+        .replace(/^\s*[Ã¢ÂÂ¢ÃÂ·]/gm, '-')             // convert bullet symbols to -
         .slice(0, 3900);
       if (method && method !== 'fallback') reply = reply + '\n\n_(' + method + ')_';
       await tgSend(chatId, reply, msg.message_id);
@@ -400,6 +400,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
   }
 
   // ---- VOICE (Telegram) ----
+  // Voice messages ALWAYS get a response — no trigger word needed
   if (msg.voice || msg.audio) {
     var vf = msg.voice || msg.audio;
     try {
@@ -411,42 +412,75 @@ app.post('/api/telegram/webhook', async function(req, res) {
       var vResp = await fetch('https://api.telegram.org/file/bot' + process.env.TELEGRAM_BOT_TOKEN + '/' + vfd.result.file_path, { signal: vCtrl.signal });
       if (!vResp.ok) throw new Error('Voice download failed');
       var vBuf = Buffer.from(await vResp.arrayBuffer());
+
+      // Transcribe with auto language detection (try EN first, then RU, BG)
       var transcript = '';
-      try {
-        var sR = await fetch('https://speech.googleapis.com/v1/speech:recognize?key=' + process.env.GOOGLE_API_KEY, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            audio: { content: vBuf.toString('base64') },
-            config: { encoding: 'OGG_OPUS', sampleRateHertz: 48000, languageCode: 'en-US', alternativeLanguageCodes: ['ru-RU', 'bg-BG'], enableAutomaticPunctuation: true }
-          })
-        });
-        var sD = await sR.json();
-        transcript = (sD.results || []).map(function(r) { return r.alternatives[0].transcript; }).join(' ').trim();
-      } catch(se) { console.error('[voice]', se.message); }
+      var langConfigs = [
+        { languageCode: 'en-US', alternativeLanguageCodes: ['ru-RU', 'bg-BG'] },
+        { languageCode: 'ru-RU', alternativeLanguageCodes: ['en-US', 'bg-BG'] },
+        { languageCode: 'bg-BG', alternativeLanguageCodes: ['en-US', 'ru-RU'] }
+      ];
+      for (var lci = 0; lci < langConfigs.length && !transcript; lci++) {
+        try {
+          var sR = await fetch('https://speech.googleapis.com/v1/speech:recognize?key=' + process.env.GOOGLE_API_KEY, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              audio: { content: vBuf.toString('base64') },
+              config: Object.assign({ encoding: 'OGG_OPUS', sampleRateHertz: 48000, enableAutomaticPunctuation: true }, langConfigs[lci])
+            })
+          });
+          var sD = await sR.json();
+          var t = (sD.results || []).map(function(r) { return r.alternatives[0].transcript; }).join(' ').trim();
+          if (t && t.length > 3) transcript = t;
+        } catch(se) { console.error('[voice transcribe]', se.message); }
+      }
 
       if (!transcript) {
-        await tgSend(chatId, 'Could not transcribe voice message. Please speak clearly or type instead.', msg.message_id);
+        await tgSend(chatId, 'Could not transcribe. Speak clearly closer to mic, or type instead.', msg.message_id);
         res.sendStatus(200); return;
       }
 
-      // Show transcript so group can see it
-      await tgSend(chatId, '🎤 ' + from + ': "' + transcript + '"', msg.message_id);
-
-      var isAddr = /^valeran/i.test(transcript) || /^valera[,\s]/i.test(transcript) || /^\u0432\u0430\u043b\u0435\u0440\u0430/i.test(transcript);
+      // Show transcript so the whole group sees what was said
+      await tgSend(chatId, '\uD83C\uDFA4 ' + from + ': \u201c' + transcript + '\u201d', msg.message_id);
       await core.saveMessage(sid, 'user', from + ' (voice): ' + transcript, null, 'telegram', from);
 
-      if (isAddr) {
-        var vQuery = transcript.replace(/^(valeran|valera|\u0432\u0430\u043b\u0435\u0440\u0430\u043d|\u0432\u0430\u043b\u0435\u0440\u0430)[,\s!?]*/i, '').trim() || transcript;
-        var vMem  = await core.loadMemory();
-        var vHR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(10);
-        var vMsgs = ((vHR.data || []).reverse()).map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
-        vMsgs.push({ role: 'user', content: vQuery });
-        var vReply = await core.callAI(vMsgs, TG_SYSTEM + vMem, 400, 18000);
-        if (vReply) {
-          await tgSend(chatId, vReply, null);
-          await core.saveMessage(sid, 'assistant', vReply, null, 'telegram', 'Valeran');
+      // Strip trigger word if present (but we always respond regardless)
+      var vQuery = transcript.replace(/^(valeran|valera|\u0432\u0430\u043b\u0435\u0440\u0430\u043d|\u0432\u0430\u043b\u0435\u0440\u0430)[,\s!?]*/i, '').trim() || transcript;
+
+      // Detect work-relevant content for auto-logging
+      var workKw = ['meeting', 'supplier', 'product', 'price', 'order', 'booth', 'hall', 'sample', 'contact', 'wechat', 'email', 'schedule',
+        '\u0432\u0441\u0442\u0440\u0435\u0447\u0430', '\u0441\u0440\u0435\u0449\u0430', '\u0434\u043e\u0441\u0442\u0430\u0432\u0447\u0438\u043a',
+        '\u043f\u0440\u043e\u0434\u0443\u043a\u0442', '\u0446\u0435\u043d\u0430', '\u043f\u043e\u0440\u044a\u0447\u043a\u0430',
+        '\u0437\u0430\u043a\u0430\u0437', '\u043e\u0431\u0440\u0430\u0437\u0435\u0446'];
+      var isWork = workKw.some(function(kw) { return transcript.toLowerCase().indexOf(kw) > -1; });
+
+      var vSystemExtra = isWork
+        ? ' This voice note contains work information. Respond normally, then on a new line add "\nLOGGED:" followed by 1-3 bullet points summarising the key facts (meeting time/place, supplier name/contact, product details, etc.).'
+        : '';
+
+      var vMem  = await core.loadMemory();
+      var vHR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(10);
+      var vMsgs = ((vHR.data || []).reverse()).map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
+      vMsgs.push({ role: 'user', content: vQuery });
+
+      var vReply = await core.callAI(vMsgs, TG_SYSTEM + vSystemExtra + vMem, 500, 18000);
+      if (!vReply) { res.sendStatus(200); return; }
+
+      // Split response and LOGGED section if present
+      if (vReply.indexOf('LOGGED:') > -1) {
+        var vParts  = vReply.split('LOGGED:');
+        var vText   = vParts[0].trim();
+        var vLogged = vParts[1] ? vParts[1].trim() : '';
+        await tgSend(chatId, vText, null);
+        if (vLogged) {
+          await core.saveCorrection('Voice log [' + from + ']: ' + vLogged, null, 'voice_log');
+          await tgSend(chatId, '\uD83D\uDCCB *Logged:* ' + vLogged, null);
         }
+      } else {
+        await tgSend(chatId, vReply, null);
       }
+      await core.saveMessage(sid, 'assistant', vReply, null, 'telegram', 'Valeran');
+
     } catch(ve) {
       console.error('[TG voice]', ve.message);
       await tgSend(chatId, 'Voice error: ' + ve.message, msg.message_id);
@@ -473,7 +507,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
   if (msg.reply_to_message && msg.reply_to_message.text) {
     var rFrom = (msg.reply_to_message.from && msg.reply_to_message.from.first_name) || 'someone';
     var isBot = !!(msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
-    var ctx = isBot ? '[Context ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
+    var ctx = isBot ? '[Context ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
     query = ctx + '\n' + from + ' asks: ' + query;
   }
 
