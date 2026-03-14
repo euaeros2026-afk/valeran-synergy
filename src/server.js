@@ -1,13 +1,13 @@
 'use strict';
 require('dotenv').config();
-var express   = require('express');
-var cors      = require('cors');
-var multer    = require('multer');
-var cron      = require('node-cron');
+var express    = require('express');
+var cors       = require('cors');
+var multer     = require('multer');
+var cron       = require('node-cron');
 var supabaseJs = require('@supabase/supabase-js');
-var core      = require('./lib/valeran-core');
-var tg        = require('./lib/telegram-bot');
-var scraper   = require('./lib/scraping-engine');
+var core       = require('./lib/valeran-core');
+var tg         = require('./lib/telegram-bot');
+var scraper    = require('./lib/scraping-engine');
 
 var app      = express();
 var supabase = supabaseJs.createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -32,13 +32,9 @@ app.get('/api/health', function(req, res) { res.json({ status: 'ok', valeran: 'o
 
 app.get('/api/debug/ai', async function(req, res) {
   try {
-    var r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 20, messages: [{ role: 'user', content: 'Say ONLINE' }] })
-    });
+    var r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 20, messages: [{ role: 'user', content: 'Say ONLINE' }] }) });
     var d = await r.json();
-    res.json({ status: r.status, reply: d.content && d.content[0] && d.content[0].text, error: d.error });
+    res.json({ status: r.status, reply: d.content && d.content[0] && d.content[0].text });
   } catch(e) { res.json({ error: e.message }); }
 });
 
@@ -53,8 +49,7 @@ app.post('/api/chat/message', requireAuth, async function(req, res) {
 
 app.get('/api/chat/messages', requireAuth, async function(req, res) {
   var sid = req.query.session_id || (await getActiveSessionId()) || 'default';
-  var r = await supabase.from('chat_messages').select('*').eq('session_id', sid)
-    .not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: true }).limit(parseInt(req.query.limit) || 60);
+  var r = await supabase.from('chat_messages').select('*').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: true }).limit(parseInt(req.query.limit) || 60);
   res.json(r.error ? { error: r.error } : { messages: r.data || [] });
 });
 
@@ -78,7 +73,7 @@ app.post('/api/catalogue/upload', requireAuth, upload.single('file'), async func
     var fileText = req.file.buffer.toString('utf-8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
     if (fileText.trim().length < 20) {
       if (uploadId) await supabase.from('catalogue_uploads').update({ analysis_status: 'failed', summary: 'Could not extract text.' }).eq('id', uploadId);
-      return res.json({ success: false, message: 'Could not extract text. Use a text-based PDF or .txt file.' });
+      return res.json({ success: false, message: 'Could not extract text.' });
     }
     res.json({ success: true, uploadId: uploadId, filename: req.file.originalname, message: 'Analysing...' });
     core.analyseCatalogue(fileText, req.body.supplier_id || null, sid, uploadId).catch(function(e) {
@@ -101,7 +96,7 @@ app.post('/api/research', requireAuth, async function(req, res) {
 app.get('/api/research/results', requireAuth, async function(req, res) {
   var q = supabase.from('product_research').select('*').order('created_at', { ascending: false }).limit(50);
   if (req.query.product_id) q = q.eq('product_id', req.query.product_id);
-  if (req.query.platform)   q = q.eq('platform', req.query.platform);
+  if (req.query.platform) q = q.eq('platform', req.query.platform);
   var r = await q;
   res.json(r.error ? { error: r.error } : { results: r.data || [] });
 });
@@ -213,189 +208,155 @@ app.post('/api/search', requireAuth, async function(req, res) {
   res.json(results);
 });
 
-// ---- TELEGRAM SYSTEM PROMPT ----
-var TG_SYSTEM = 'You are Valeran, AI assistant for Synergy Ventures at Canton Fair 2026 in Guangzhou, China. ' +
-  'Team: Alexander (owner, EN), Ina (partner, RU), Konstantin Khoch (partner, RU), Konstantin Ganev (partner, BG), Slavi (observer, BG). ' +
-  'LANGUAGE RULE: detect language of message and reply in EXACT same language. BG=BG, RU=RU, EN=EN. Never mix. ' +
-  'STYLE: be concise and direct. 1-3 sentences for simple questions. Use lists only when needed. No unnecessary formatting or preamble. ' +
-  'CONTEXT: if message has [Context:...] at start, that is what someone replied to — use it fully. ' +
-  'KNOWLEDGE: Canton Fair Apr15-May5, Guangzhou. Margin target >35%. Help with sourcing, pricing, EU market, logistics, translations, anything.';
+// ---- HELPERS ----
+var TG_SYSTEM = 'You are Valeran, AI assistant for Synergy Ventures at Canton Fair 2026 in Guangzhou. ' +
+  'Team: Alexander (EN), Ina (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi (BG). ' +
+  'LANGUAGE: reply in exact same language as the message. BG=BG, RU=RU, EN=EN. Never mix. ' +
+  'STYLE: short and direct. 1-3 sentences for simple questions. No fluff. ' +
+  'Use [Context:...] when present — that is what someone replied to.';
 
-// ---- TELEGRAM DOCUMENT HANDLER ----
-async function handleTelegramDocument(msg, sid) {
-  var doc     = msg.document;
-  var caption = (msg.caption && msg.caption.trim()) || '';
-  var from    = (msg.from && msg.from.first_name) || 'Partner';
-  var chatId  = msg.chat.id;
-  var fname   = (doc.file_name || 'document').toLowerCase();
-  var isPDF   = fname.endsWith('.pdf') || doc.mime_type === 'application/pdf';
-
-  // Immediately acknowledge
-  await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text: 'Got it — downloading and reading ' + doc.file_name + '...', reply_to_message_id: msg.message_id })
+async function tgSend(chatId, text, replyToId) {
+  var body = { chat_id: chatId, text: text.slice(0, 4000) };
+  if (replyToId) body.reply_to_message_id = replyToId;
+  return fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
   });
-
-  try {
-    // Step 1: Get file path from Telegram
-    var fileInfoR = await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/getFile?file_id=' + doc.file_id);
-    var fileInfo  = await fileInfoR.json();
-    if (!fileInfo.ok || !fileInfo.result.file_path) throw new Error('Could not get file path');
-
-    // Step 2: Download file bytes
-    var fileURL  = 'https://api.telegram.org/file/bot' + process.env.TELEGRAM_BOT_TOKEN + '/' + fileInfo.result.file_path;
-    var ctrl     = new AbortController();
-    var timer    = setTimeout(function() { ctrl.abort(); }, 20000);
-    var fileResp = await fetch(fileURL, { signal: ctrl.signal });
-    clearTimeout(timer);
-    if (!fileResp.ok) throw new Error('Download failed: ' + fileResp.status);
-
-    var buffer = await fileResp.arrayBuffer();
-    var bytes  = Buffer.from(buffer);
-
-    // Step 3: Extract text — try UTF-8 first, then Latin-1
-    var fileText = bytes.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
-    if (fileText.trim().length < 100) {
-      fileText = bytes.toString('latin1').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ');
-    }
-
-    // Step 4: If still not enough readable text (binary PDF), send as base64 to Claude vision
-    var hasReadableText = fileText.replace(/\s+/g, '').length > 200;
-    var summary = '';
-    var keyFacts = '';
-
-    if (hasReadableText) {
-      // Text-based PDF or text file — analyse directly
-      var analysisPrompt = 'Analyse this document. Extract: 1) What is it about (1 sentence). 2) Key facts, dates, locations, rules the team should know (bullet list). 3) Any action items. Document: ' + fileText.slice(0, 6000);
-      summary = await core.callAI([{ role: 'user', content: analysisPrompt }], TG_SYSTEM, 800, 25000);
-    } else if (isPDF) {
-      // Binary PDF — send to Claude as base64 document
-      var base64PDF = bytes.toString('base64');
-      var claudeMessages = [{
-        role: 'user',
-        content: [
-          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64PDF } },
-          { type: 'text', text: 'Analyse this document. Extract: 1) What is it about (1 sentence). 2) Key facts, dates, locations, rules. 3) Action items for the team. Be concise.' + (caption ? ' User note: ' + caption : '') }
-        ]
-      }];
-      // Use claude-haiku for this (supports documents)
-      var ctrl2 = new AbortController();
-      var timer2 = setTimeout(function() { ctrl2.abort(); }, 25000);
-      try {
-        var r2 = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-          body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 800, messages: claudeMessages }),
-          signal: ctrl2.signal
-        });
-        clearTimeout(timer2);
-        var r2d = await r2.json();
-        summary = r2d.content && r2d.content[0] && r2d.content[0].text || '';
-      } catch(e) { clearTimeout(timer2); summary = ''; }
-    }
-
-    if (!summary) {
-      summary = 'Saved: ' + doc.file_name + (caption ? ' — ' + caption : '') + '. Could not extract full text from this PDF. Add a caption describing what it contains and I will remember it.';
-    }
-
-    // Step 5: Save to valeran_memory so Valeran can reference it
-    var memContent = 'Document from ' + from + ': ' + doc.file_name + '. ' + (caption ? 'User note: ' + caption + '. ' : '') + 'Summary: ' + summary.slice(0, 1000);
-    await core.saveCorrection(memContent, null, 'document_' + fname.replace(/[^a-z0-9]/g, '_').slice(0, 30));
-
-    // Step 6: Also save to catalogue_uploads for reference
-    await supabase.from('catalogue_uploads').insert({
-      filename: doc.file_name,
-      session_id: sid,
-      analysis_status: 'done',
-      products_extracted: 0,
-      summary: summary.slice(0, 2000),
-      raw_analysis: { caption: caption, from: from, file_size: doc.file_size, mime_type: doc.mime_type }
-    });
-
-    // Step 7: Send summary back to group
-    var reply = summary.slice(0, 3800);
-    await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: reply, reply_to_message_id: msg.message_id, parse_mode: 'Markdown' })
-    });
-
-    await core.saveMessage(sid, 'user', from + ' sent document: ' + doc.file_name, null, 'telegram', from);
-    await core.saveMessage(sid, 'assistant', reply, null, 'telegram', 'Valeran');
-
-  } catch(e) {
-    console.error('[TG doc]', e.message);
-    await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: 'Could not read the file: ' + e.message + '. Try sending as a .txt file or paste the key text directly.', reply_to_message_id: msg.message_id })
-    });
-  }
 }
 
 // ---- TELEGRAM WEBHOOK ----
-app.post('/api/telegram/webhook', async function(req, res) {
-  // Always ACK immediately — prevents Telegram retries
-  res.sendStatus(200);
+// CRITICAL: ALL work happens BEFORE res.sendStatus(200).
+// Vercel kills async code after res.send().
+// For documents: takes 10-20s — Telegram retries after 5s (harmless).
+// For text: takes 3-5s — within Telegram's window.
 
+app.post('/api/telegram/webhook', async function(req, res) {
   var body = req.body || {};
   var msg  = body.message || body.channel_post || body.edited_message;
-  if (!msg) return;
+  if (!msg) { res.sendStatus(200); return; }
 
   var from   = (msg.from && msg.from.first_name) || 'Partner';
   var chatId = msg.chat && msg.chat.id;
   var sid    = (await getActiveSessionId()) || 'default';
 
-  // ---- DOCUMENT / FILE ----
+  // ---- DOCUMENT / PDF ----
   if (msg.document) {
-    handleTelegramDocument(msg, sid).catch(function(e) {
-      console.error('[TG doc crash]', e.message);
-    });
+    var doc   = msg.document;
+    var fname = doc.file_name || 'document';
+    var cap   = (msg.caption && msg.caption.trim()) || '';
+
+    try {
+      // Step 1: get Telegram file path
+      var fi = await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/getFile?file_id=' + doc.file_id);
+      var fd = await fi.json();
+      if (!fd.ok) throw new Error('Cannot get file: ' + JSON.stringify(fd));
+
+      // Step 2: download file
+      var fileURL = 'https://api.telegram.org/file/bot' + process.env.TELEGRAM_BOT_TOKEN + '/' + fd.result.file_path;
+      var ctrl = new AbortController();
+      setTimeout(function() { ctrl.abort(); }, 20000);
+      var fileResp = await fetch(fileURL, { signal: ctrl.signal });
+      if (!fileResp.ok) throw new Error('Download failed ' + fileResp.status);
+      var buffer = Buffer.from(await fileResp.arrayBuffer());
+
+      // Step 3: extract text or use Claude PDF vision
+      var fileText = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
+      var readableChars = (fileText.match(/[a-zA-Z0-9\u0400-\u04FF]/g) || []).length;
+      var isPDF = fname.toLowerCase().endsWith('.pdf') || doc.mime_type === 'application/pdf';
+      var summary = '';
+
+      if (readableChars > 300) {
+        // Text-based file — read directly
+        var prompt = 'Analyse this document briefly. What is it about (1 sentence)? List key facts, dates, locations, rules (bullets). Any actions needed? Document: ' + fileText.slice(0, 5000);
+        summary = await core.callAI([{ role: 'user', content: prompt }], TG_SYSTEM, 600, 25000);
+      } else if (isPDF) {
+        // Binary PDF — send to Claude as document
+        var b64 = buffer.toString('base64');
+        var ctrl2 = new AbortController();
+        setTimeout(function() { ctrl2.abort(); }, 25000);
+        var r2 = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 600,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+                { type: 'text', text: 'Summarise this document briefly: what is it (1 sentence), key facts and dates (bullets), any action items.' + (cap ? ' Note from sender: ' + cap : '') }
+              ]
+            }]
+          }),
+          signal: ctrl2.signal
+        });
+        var r2d = await r2.json();
+        summary = r2d.content && r2d.content[0] && r2d.content[0].text || '';
+      }
+
+      if (!summary) {
+        summary = 'Saved "' + fname + '".' + (cap ? ' Your note: ' + cap + '.' : '') + ' Could not read the content — it may be a scanned image PDF. Try sending as .txt or paste the key info directly.';
+      }
+
+      // Step 4: save to memory so Valeran can reference it
+      var memEntry = 'Document "' + fname + '" from ' + from + '. ' + (cap ? 'Note: ' + cap + '. ' : '') + 'Content: ' + summary.slice(0, 800);
+      await core.saveCorrection(memEntry, null, 'doc_' + fname.replace(/[^a-z0-9]/gi, '_').slice(0, 40));
+
+      // Step 5: save to catalogue_uploads
+      await supabase.from('catalogue_uploads').insert({ filename: fname, session_id: sid, analysis_status: 'done', products_extracted: 0, summary: summary.slice(0, 2000), raw_analysis: { caption: cap, from: from, size: doc.file_size } });
+
+      // Step 6: reply with summary
+      await tgSend(chatId, summary, msg.message_id);
+      await core.saveMessage(sid, 'user', from + ' sent file: ' + fname, null, 'telegram', from);
+      await core.saveMessage(sid, 'assistant', summary, null, 'telegram', 'Valeran');
+
+    } catch(e) {
+      console.error('[TG doc]', e.message);
+      await tgSend(chatId, 'Could not read "' + fname + '": ' + e.message + '. Try a .txt file or paste the key text directly.', msg.message_id);
+    }
+
+    res.sendStatus(200);
     return;
   }
 
+  // ---- TEXT ----
   var text = (msg.text && msg.text.trim()) || '';
-  if (!text) return;
+  if (!text) { res.sendStatus(200); return; }
 
   var isPrefix  = /^valeran/i.test(text) || /^valera[,\s]/i.test(text) || /^\u0432\u0430\u043b\u0435\u0440\u0430/i.test(text);
   var isMention = text.indexOf('@ValeranSV_bot') > -1;
   var isReply   = !!(msg.reply_to_message && msg.reply_to_message.from);
 
-  // Save all messages silently for context
   if (!isPrefix && !isMention && !isReply) {
     core.saveMessage(sid, 'user', from + ': ' + text, null, 'telegram', from).catch(function() {});
+    res.sendStatus(200);
     return;
   }
 
-  // Build query
   var query = text.replace(/@ValeranSV_bot/gi, '').replace(/^(valeran|valera|\u0432\u0430\u043b\u0435\u0440\u0430\u043d|\u0432\u0430\u043b\u0435\u0440\u0430)[,\s!?]*/i, '').trim() || 'Hello';
 
   if (msg.reply_to_message && msg.reply_to_message.text) {
     var rFrom = (msg.reply_to_message.from && msg.reply_to_message.from.first_name) || 'someone';
     var isBot = !!(msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
-    var ctx = isBot
-      ? '[Context — you previously said: "' + msg.reply_to_message.text.slice(0, 300) + '"]'
-      : '[Context — ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
-    query = ctx + '\n\n' + from + ' asks: ' + query;
+    var ctx = isBot ? '[Context — you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context — ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
+    query = ctx + '\n' + from + ' asks: ' + query;
   }
 
   try {
     var memory  = await core.loadMemory();
-    var histR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid)
-      .not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(10);
-    var history = ((histR.data || []).reverse());
+    var histR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(10);
+    var history = (histR.data || []).reverse();
     var msgs    = history.map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
     msgs.push({ role: 'user', content: query });
 
     var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 18000);
-    if (!reply) return;
+    if (!reply) { res.sendStatus(200); return; }
 
-    await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: reply, reply_to_message_id: msg.message_id, parse_mode: 'Markdown' })
-    });
-
+    await tgSend(chatId, reply, msg.message_id);
     core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from).catch(function() {});
     core.saveMessage(sid, 'assistant', reply, null, 'telegram', 'Valeran').catch(function() {});
   } catch(e) { console.error('[TG]', e.message); }
+
+  res.sendStatus(200);
 });
 
 // ---- CRON ----
