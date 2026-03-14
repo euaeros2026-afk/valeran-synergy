@@ -46,7 +46,7 @@ export default function Chat({ supabase, partner }) {
   window.__valeranUser = myName
 
   useEffect(function() {
-    loadMessages(); loadPresence(); loadStats(); pingPresence()
+    loadPresence(); loadStats(); pingPresence()
     pingRef.current = setInterval(function() { pingPresence(); loadPresence() }, 30000)
 
     var ch = supabase.channel('sv_chat_v7')
@@ -91,9 +91,8 @@ export default function Chat({ supabase, partner }) {
     bcastRef.current = bCh
 
     window.addEventListener('beforeunload', markOffline)
-    var pollInterval = setInterval(function() { loadMessages(); }, 45000);
     return function() {
-      clearInterval(pingRef.current); clearInterval(pollInterval);
+      clearInterval(pingRef.current);
       supabase.removeChannel(ch)
       supabase.removeChannel(bCh)
       window.removeEventListener('beforeunload', markOffline)
@@ -115,11 +114,11 @@ export default function Chat({ supabase, partner }) {
   async function markOffline() { var t = await getToken(); if (!t) return; fetch(API + '/api/presence/offline', { method: 'POST', headers: { Authorization: 'Bearer ' + t }, keepalive: true }).catch(function() {}) }
   async function loadPresence() { var t = await getToken(); if (!t) return; var r = await fetch(API + '/api/presence', { headers: { Authorization: 'Bearer ' + t } }).catch(function() { return null }); if (r && r.ok) { var d = await r.json(); setPresence(d.presence || []) } }
   async function loadStats() {
-    var t = await getToken(); if (!t) return
+    var t = await getToken()
+    if (!t) return
     try {
-      var rs = await Promise.all([fetch(API + '/api/products', { headers: { Authorization: 'Bearer ' + t } }), fetch(API + '/api/suppliers', { headers: { Authorization: 'Bearer ' + t } }), fetch(API + '/api/meetings', { headers: { Authorization: 'Bearer ' + t } })])
-      var ds = await Promise.all(rs.map(function(x) { return x.json() }))
-      setStats({ products: (ds[0].products || []).length, suppliers: (ds[1].suppliers || []).length, meetings: (ds[2].meetings || []).length })
+      var r = await fetch(API + '/api/stats', { headers: { Authorization: 'Bearer ' + t } })
+      if (r && r.ok) { var d = await r.json(); setStats({ products: d.products||0, suppliers: d.suppliers||0, meetings: d.meetings||0, uploads: d.uploads||0 }) }
     } catch(e) {}
   }
   async function loadMessages() {
@@ -243,6 +242,7 @@ export default function Chat({ supabase, partner }) {
 
   var onlineCount = presence.filter(function(p) { return p.is_online }).length
 
+  if (!myName) return (<div className="chat-page" style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh'}}><div style={{color:'rgba(255,255,255,0.3)',fontSize:13,letterSpacing:1}}>Connecting...</div></div>)
   return (
     <div className="chat-page">
       <div className="chat-header">
@@ -273,7 +273,7 @@ export default function Chat({ supabase, partner }) {
           <div className="dash-stats">
             <div className="dash-stat"><div className="dash-stat-num">{stats.products}</div><div className="dash-stat-label">Products</div></div>
             <div className="dash-stat"><div className="dash-stat-num">{stats.suppliers}</div><div className="dash-stat-label">Suppliers</div></div>
-            <div className="dash-stat"><div className="dash-stat-num">{stats.meetings}</div><div className="dash-stat-label">Meetings</div></div>
+            <div className="dash-stat"><div className="dash-stat-num">{stats.uploads}</div><div className="dash-stat-label">Catalogues</div></div>
             <div className="dash-stat"><div className="dash-stat-num">{onlineCount}</div><div className="dash-stat-label">Online</div></div>
           </div>
           <div className="dash-card">
