@@ -62,18 +62,21 @@ export default function Chat({ supabase, partner }) {
     pingRef.current = setInterval(() => { pingPresence(); loadPresence() }, 30000)
 
     // ---- REALTIME: new messages ----
-    // Key fix: realtime delivers the real message — we NEVER add it manually after send
+    // Key fix: realtime delivers the real message â we NEVER add it manually after send
     const msgChannel = supabase.channel('chat_messages_v2')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, payload => {
         const m = payload.new
         if (m.session_id !== 'team-chat') return
+        // If this message was sent by us, register its real DB id
+        const mName = (m.telegram_user || '').toLowerCase().trim()
+        const myN   = myName.toLowerCase().trim()
+        if (m.role === 'user' && (mName === myN || (mName !== '' && myN.indexOf(mName.split(' ')[0]) > -1))) {
+          myMsgIds.current.add(m.id)
+        }
         setMessages(prev => {
-          // Deduplicate by real ID
           if (prev.find(x => x.id === m.id)) return prev
-          // Remove any temp placeholder for this message (same content + sender)
           const filtered = prev.filter(x => {
             if (!x.id || !x.id.toString().startsWith('tmp-')) return true
-            // Remove temp if content matches and was sent recently (within 10s)
             const age = Date.now() - new Date(x.created_at).getTime()
             return !(x.content === m.content && age < 10000)
           })
@@ -83,13 +86,16 @@ export default function Chat({ supabase, partner }) {
       .subscribe()
 
     // ---- BROADCAST: typing indicators ----
-    const broadcastChannel = supabase.channel('typing_' + 'team-chat', { config: { broadcast: { self: false } } })
+    const broadcastChannel = supabase.channel('typing_team_chat', { config: { broadcast: { self: false } } })
       .on('broadcast', { event: 'typing' }, payload => {
         const name = payload.payload && payload.payload.name
-        if (!name || name === myName) return
+        if (!name) return
+        const nameLower = name.toLowerCase()
+        const myLower = myName.toLowerCase()
+        // Don't show our own typing
+        if (nameLower === myLower || myLower.indexOf(nameLower.split(' ')[0]) > -1) return
         setTyping(prev => prev.includes(name) ? prev : [...prev, name])
-        // Auto-remove after 3s of no updates
-        setTimeout(() => setTyping(prev => prev.filter(n => n !== name)), 3000)
+        setTimeout(() => setTyping(prev => prev.filter(n => n !== name)), 3500)
       })
       .subscribe()
     broadcastRef.current = broadcastChannel
@@ -164,14 +170,22 @@ export default function Chat({ supabase, partner }) {
     if (isValeranMsg(msg)) return 'Valeran'
     return msg.telegram_user || myName
   }
+  // Track IDs of messages sent by this user in this session
+  const myMsgIds = useRef(new Set())
+  
   function isMe(msg) {
     if (isValeranMsg(msg)) return false
-    var sender = (msg.telegram_user || '').toLowerCase()
-    var me = myName.toLowerCase()
-    return sender === me || msg.partner_id === (partner && partner.id)
+    // Check our local sent-message registry first (most reliable)
+    if (msg.id && myMsgIds.current.has(msg.id)) return true
+    // Temp messages (not yet confirmed) are always ours
+    if (msg.id && msg.id.toString().startsWith('tmp-')) return true
+    // Compare sender name
+    var sender = (msg.telegram_user || '').toLowerCase().trim()
+    var me = myName.toLowerCase().trim()
+    return sender === me || (sender !== '' && me !== '' && (sender === me || me.indexOf(sender.split(' ')[0]) > -1))
   }
 
-  // ---- SEND — key rule: add temp optimistic message, let realtime replace it ----
+  // ---- SEND â key rule: add temp optimistic message, let realtime replace it ----
   async function sendMessage() {
     var text = input.trim(); if (!text || sending) return
     setError(null); setSending(true); setInput('')
@@ -184,14 +198,14 @@ export default function Chat({ supabase, partner }) {
     try {
       const t = await getToken()
       if (isValeranCall) {
-        // Valeran call — AI responds
+        // Valeran call â AI responds
         const r = await fetch(API + '/api/chat/message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
           body: JSON.stringify({ text, session_id: 'team-chat' })
         })
         const d = await r.json()
-        // Remove temp — realtime will deliver the real user message
+        // Remove temp â realtime will deliver the real user message
         // Valeran reply comes via realtime too (saved in processMessage)
         setMessages(p => p.filter(m => m.id !== tempId))
         // If for some reason realtime didn't deliver Valeran's reply, add it manually
@@ -204,13 +218,13 @@ export default function Chat({ supabase, partner }) {
           }, 1000)
         }
       } else {
-        // Team message — just save, realtime delivers it
+        // Team message â just save, realtime delivers it
         await fetch(API + '/api/chat/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
           body: JSON.stringify({ text, session_id: 'team-chat' })
         })
-        // Remove temp — realtime will deliver the real message
+        // Remove temp â realtime will deliver the real message
         setMessages(p => p.filter(m => m.id !== tempId))
       }
     } catch(e) {
@@ -225,13 +239,13 @@ export default function Chat({ supabase, partner }) {
     const fd = new FormData(); fd.append('photo', file)
     if (input.trim()) { fd.append('caption', input); setInput('') }
     var tempId = 'tmp-ph-' + Date.now()
-    setMessages(p => [...p, { id: tempId, role: 'user', content: '📷 ' + file.name, telegram_user: myName, created_at: new Date().toISOString() }])
+    setMessages(p => [...p, { id: tempId, role: 'user', content: 'ð· ' + file.name, telegram_user: myName, created_at: new Date().toISOString() }])
     try {
       const r = await fetch(API + '/api/chat/photo', { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd })
       const d = await r.json()
       setMessages(p => {
         const f = p.filter(m => m.id !== tempId)
-        f.push({ id: 'local-ph-' + Date.now(), role: 'user', content: '📷 ' + file.name, telegram_user: myName, created_at: new Date().toISOString() })
+        f.push({ id: 'local-ph-' + Date.now(), role: 'user', content: 'ð· ' + file.name, telegram_user: myName, created_at: new Date().toISOString() })
         if (d.reply) f.push({ id: 'local-a-' + Date.now(), role: 'assistant', content: d.reply, created_at: new Date().toISOString() })
         return f
       })
@@ -244,13 +258,13 @@ export default function Chat({ supabase, partner }) {
     const t = await getToken()
     const fd = new FormData(); fd.append('file', file)
     var tempId = 'tmp-f-' + Date.now()
-    setMessages(p => [...p, { id: tempId, role: 'user', content: '📎 ' + file.name + ' — analysing...', telegram_user: myName, created_at: new Date().toISOString() }])
+    setMessages(p => [...p, { id: tempId, role: 'user', content: 'ð ' + file.name + ' â analysing...', telegram_user: myName, created_at: new Date().toISOString() }])
     try {
       const r = await fetch(API + '/api/catalogue/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd })
       const d = await r.json()
       setMessages(p => {
         const f = p.filter(m => m.id !== tempId)
-        f.push({ id: 'local-f-' + Date.now(), role: 'user', content: '📎 ' + file.name, telegram_user: myName, created_at: new Date().toISOString() })
+        f.push({ id: 'local-f-' + Date.now(), role: 'user', content: 'ð ' + file.name, telegram_user: myName, created_at: new Date().toISOString() })
         if (d.message) f.push({ id: 'local-fa-' + Date.now(), role: 'assistant', content: d.message, created_at: new Date().toISOString() })
         return f
       })
@@ -275,13 +289,13 @@ export default function Chat({ supabase, partner }) {
         const fd = new FormData(); fd.append('audio', blob, 'voice.webm')
         setSending(true)
         var tempId = 'tmp-v-' + Date.now()
-        setMessages(p => [...p, { id: tempId, role: 'user', content: '🎤 ...', telegram_user: myName, created_at: new Date().toISOString() }])
+        setMessages(p => [...p, { id: tempId, role: 'user', content: 'ð¤ ...', telegram_user: myName, created_at: new Date().toISOString() }])
         try {
           const r = await fetch(API + '/api/chat/voice', { method: 'POST', headers: { Authorization: 'Bearer ' + t }, body: fd })
           const d = await r.json()
           setMessages(p => {
             const f = p.filter(m => m.id !== tempId)
-            if (d.transcript) f.push({ id: 'v-u-' + Date.now(), role: 'user', content: '🎤 "' + d.transcript + '"', telegram_user: myName, created_at: new Date().toISOString() })
+            if (d.transcript) f.push({ id: 'v-u-' + Date.now(), role: 'user', content: 'ð¤ "' + d.transcript + '"', telegram_user: myName, created_at: new Date().toISOString() })
             if (d.reply) f.push({ id: 'v-a-' + Date.now(), role: 'assistant', content: d.reply, created_at: new Date().toISOString() })
             return f
           })
@@ -336,16 +350,16 @@ export default function Chat({ supabase, partner }) {
             <div className="dash-stat"><div className="dash-stat-num">{onlineCount}</div><div className="dash-stat-label">Online</div></div>
           </div>
           <div className="dash-card">
-            <div className="dash-card-title">Canton Fair 2026 · 139th Session</div>
+            <div className="dash-card-title">Canton Fair 2026 Â· 139th Session</div>
             {[
-              { phase: 'Phase 1', dates: 'Apr 15–19', cats: 'Electronics, Hardware, Lighting, Tools, Smart Home', color: '#e8a045' },
-              { phase: 'Phase 2', dates: 'Apr 23–27', cats: 'Home Goods, Ceramics, Furniture, Gifts, Garden', color: '#7c6af7' },
-              { phase: 'Phase 3', dates: 'May 1–5',   cats: 'Fashion, Textiles, Toys, Personal Care, Food',  color: '#4ade80' },
+              { phase: 'Phase 1', dates: 'Apr 15â19', cats: 'Electronics, Hardware, Lighting, Tools, Smart Home', color: '#e8a045' },
+              { phase: 'Phase 2', dates: 'Apr 23â27', cats: 'Home Goods, Ceramics, Furniture, Gifts, Garden', color: '#7c6af7' },
+              { phase: 'Phase 3', dates: 'May 1â5',   cats: 'Fashion, Textiles, Toys, Personal Care, Food',  color: '#4ade80' },
             ].map(ph => (
               <div key={ph.phase} style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'flex-start' }}>
                 <div style={{ width: 4, borderRadius: 4, background: ph.color, alignSelf: 'stretch', flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: ph.color }}>{ph.phase} · {ph.dates}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: ph.color }}>{ph.phase} Â· {ph.dates}</div>
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>{ph.cats}</div>
                 </div>
               </div>
@@ -354,11 +368,11 @@ export default function Chat({ supabase, partner }) {
           <div className="dash-card">
             <div className="dash-card-title">Team</div>
             {[
-              { name: 'Alexander Oslan',      role: 'Owner · Strategy',         lang: 'EN' },
-              { name: 'Ina Kanaplianikava',   role: 'Partner · Quality',         lang: 'RU' },
-              { name: 'Konstantin Khoch',     role: 'Partner · Negotiations',    lang: 'RU' },
-              { name: 'Konstantin Ganev',     role: 'Partner · Logistics',       lang: 'BG' },
-              { name: 'Slavi Mikinski',       role: 'Observer · Remote',         lang: 'BG' },
+              { name: 'Alexander Oslan',      role: 'Owner Â· Strategy',         lang: 'EN' },
+              { name: 'Ina Kanaplianikava',   role: 'Partner Â· Quality',         lang: 'RU' },
+              { name: 'Konstantin Khoch',     role: 'Partner Â· Negotiations',    lang: 'RU' },
+              { name: 'Konstantin Ganev',     role: 'Partner Â· Logistics',       lang: 'BG' },
+              { name: 'Slavi Mikinski',       role: 'Observer Â· Remote',         lang: 'BG' },
             ].map(m => {
               var online = presence.find(p => p.name && p.name.toLowerCase().indexOf(m.name.split(' ')[0].toLowerCase()) > -1 && p.is_online)
               return (
@@ -366,10 +380,10 @@ export default function Chat({ supabase, partner }) {
                   <Avatar name={m.name} size={32} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{m.name}</div>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{m.role} · {m.lang}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{m.role} Â· {m.lang}</div>
                   </div>
                   <div style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: online ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.06)', color: online ? '#4ade80' : 'rgba(255,255,255,0.3)', border: '1px solid ' + (online ? 'rgba(74,222,128,0.3)' : 'transparent') }}>
-                    {online ? '● online' : 'offline'}
+                    {online ? 'â online' : 'offline'}
                   </div>
                 </div>
               )
@@ -377,17 +391,17 @@ export default function Chat({ supabase, partner }) {
           </div>
           <div className="dash-card">
             <div className="dash-card-title">Venue & Contacts</div>
-            <div className="dash-info-row"><span>📍</span><span>Pazhou Complex, No.380 Yuejiang Zhong Rd, Guangzhou</span></div>
-            <div className="dash-info-row"><span>🌡️</span><span>April: 22–28°C, humid, frequent rain — bring umbrella</span></div>
-            <div className="dash-info-row"><span>📞</span><span>CFTC: 4000-888-999 (CN) / +86-20-28-888-999</span></div>
-            <div className="dash-info-row"><span>🌐</span><span>cantonfair.org.cn · Canton Fair APP</span></div>
+            <div className="dash-info-row"><span>ð</span><span>Pazhou Complex, No.380 Yuejiang Zhong Rd, Guangzhou</span></div>
+            <div className="dash-info-row"><span>ð¡ï¸</span><span>April: 22â28Â°C, humid, frequent rain â bring umbrella</span></div>
+            <div className="dash-info-row"><span>ð</span><span>CFTC: 4000-888-999 (CN) / +86-20-28-888-999</span></div>
+            <div className="dash-info-row"><span>ð</span><span>cantonfair.org.cn Â· Canton Fair APP</span></div>
           </div>
           <div className="dash-card">
             <div className="dash-card-title">Margin Formula</div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 }}>
-              <div>Landed = buy × 1.12 (freight) × 1.035 (duty)</div>
-              <div>Net = (sell − landed − 15% fees − 10% ads) ÷ sell</div>
-              <div style={{ color: '#4ade80', fontWeight: 600, marginTop: 4 }}>Target: &gt;35% · Example: buy $4 → sell €18 → margin 51% ✅</div>
+              <div>Landed = buy Ã 1.12 (freight) Ã 1.035 (duty)</div>
+              <div>Net = (sell â landed â 15% fees â 10% ads) Ã· sell</div>
+              <div style={{ color: '#4ade80', fontWeight: 600, marginTop: 4 }}>Target: &gt;35% Â· Example: buy $4 â sell â¬18 â margin 51% â</div>
             </div>
           </div>
         </div>
@@ -398,7 +412,7 @@ export default function Chat({ supabase, partner }) {
         <>
           <div className="messages-list">
             <div style={{ textAlign:'center', fontSize:11, color:'rgba(255,255,255,0.2)', padding:'6px 0' }}>
-              "Valeran, ..." → AI · Everything else → team chat
+              "Valeran, ..." â AI Â· Everything else â team chat
             </div>
 
             {messages.map(msg => {
@@ -435,11 +449,11 @@ export default function Chat({ supabase, partner }) {
             {typing.length > 0 && (
               <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', padding:'2px 4px', display:'flex', alignItems:'center', gap:6 }}>
                 <div className="typing-dots"><span/><span/><span/></div>
-                {typing.join(', ')} {typing.length === 1 ? 'is' : 'are'} typing…
+                {typing.join(', ')} {typing.length === 1 ? 'is' : 'are'} typingâ¦
               </div>
             )}
 
-            {error && <div className="chat-error">⚠️ {error}</div>}
+            {error && <div className="chat-error">â ï¸ {error}</div>}
             <div ref={bottomRef} />
           </div>
 
@@ -452,7 +466,7 @@ export default function Chat({ supabase, partner }) {
             <input className="chat-input" value={input}
               onChange={handleInputChange}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-              placeholder='Message team · "Valeran, …" for AI'
+              placeholder='Message team Â· "Valeran, â¦" for AI'
               disabled={recording} />
             <button className={'input-action-btn mic-btn ' + (recording ? 'recording' : '')}
               onMouseDown={startRecording} onMouseUp={stopRecording}
