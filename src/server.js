@@ -417,17 +417,12 @@ app.post('/api/telegram/webhook', async function(req, res) {
         ? ' This voice note contains work information. Respond normally, then on a new line add "\nLOGGED:" followed by 1-3 bullet points summarising the key facts (meeting time/place, supplier name/contact, product details, etc.).'
         : '';
 
-      var isWork = /supplier|product|price|margin|booth|hall|meeting|buy|sell/i.test(query);
-    var vMem = isWork ? (await core.loadMemory()) : '';
-    var vHR = await supabase.from('chat_messages').select('role, content')
-      .eq('session_id', sid).not('content', 'ilike', '__VALERAN_%')
-      .order('created_at', { ascending: false }).limit(6);
-    var history = (vHR.data || []).reverse();
-    var msgs = history.map(function(m) {
-      return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content };
-    });
-    msgs.push({ role: 'user', content: query });
-    var reply = await core.callAI(msgs, TG_SYSTEM + vMem, isWork ? 400 : 250, 14000);
+      var vMem  = await core.loadMemory();
+      var vHR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(10);
+      var vMsgs = ((vHR.data || []).reverse()).map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
+      vMsgs.push({ role: 'user', content: vQuery });
+
+      var vReply = await core.callAI(vMsgs, TG_SYSTEM + vSystemExtra + vMem, 500, 18000);
       if (!vReply) { res.sendStatus(200); return; }
 
       // Split response and LOGGED section if present
