@@ -478,13 +478,15 @@ app.post('/api/telegram/webhook', async function(req, res) {
         var vParts  = vReply.split('LOGGED:');
         var vText   = vParts[0].trim();
         var vLogged = vParts[1] ? vParts[1].trim() : '';
-        await tgSend(chatId, cleanTG(vText), null);
+        await vText = cleanTG(vText);
+    tgSend(chatId, vText, null);
         if (vLogged) {
           await core.saveCorrection('Voice log [' + from + ']: ' + vLogged, null, 'voice_log');
           await tgSend(chatId, '\uD83D\uDCCB *Logged:* ' + vLogged, null);
         }
       } else {
-        await tgSend(chatId, cleanTG(vReply), null);
+        await vReply = cleanTG(vReply);
+    tgSend(chatId, vReply, null);
       }
       await core.saveMessage(sid, 'assistant', vReply, null, 'telegram', 'Valeran');
 
@@ -529,7 +531,8 @@ app.post('/api/telegram/webhook', async function(req, res) {
     var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 18000);
     if (!reply) { res.sendStatus(200); return; }
 
-    await tgSend(chatId, cleanTG(reply), msg.message_id);
+    await reply = cleanTG(reply);
+    tgSend(chatId, reply, msg.message_id);
     core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from).catch(function() {});
     core.saveMessage(sid, 'assistant', reply, null, 'telegram', 'Valeran').catch(function() {});
   } catch(e) { console.error('[TG]', e.message); }
