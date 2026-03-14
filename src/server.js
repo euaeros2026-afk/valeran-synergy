@@ -90,24 +90,25 @@ app.post('/api/catalogue/upload', requireAuth, upload.single('file'), async func
     var uploadId = upR.data && upR.data.id;
     var fileMime = req.file.mimetype || '';
     var fileExt = (req.file.originalname||'').toLowerCase().split('.').pop();
-    var isPdf = fileExt === 'pdf' || fileMime === 'application/pdf';
-    var isImg = ['jpg','jpeg','png','gif','webp','bmp'].indexOf(fileExt) > -1 || fileMime.indexOf('image/') === 0;
+    var isPdfUp = fileExt === 'pdf' || fileMime === 'application/pdf';
+    var isImgUp = ['jpg','jpeg','png','gif','webp'].indexOf(fileExt) > -1 || fileMime.indexOf('image/') === 0;
     var fileText = req.file.buffer.toString('utf-8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
-    var b64cat = req.file.buffer.toString('base64');
-    if (fileText.trim().length < 20 && (isPdf || isImg)) {
-      // Binary file: use vision API
-      res.json({ success: true, uploadId: uploadId, filename: req.file.originalname, message: 'Scanning with AI vision...' });
-      var vMime = isPdf ? 'application/pdf' : (fileMime || 'image/jpeg');
-      var vContent = isPdf
-        ? [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64cat } }, { type: 'text', text: 'Analyse this supplier catalogue. Extract all products, prices, MOQ, contacts. Structured summary.' }]
-        : [{ type: 'image', source: { type: 'base64', media_type: vMime, data: b64cat } }, { type: 'text', text: 'Supplier catalogue image. Extract all products, prices, MOQ, contacts visible.' }];
-      fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, messages: [{ role: 'user', content: vContent }] }) })
-        .then(function(vr) { return vr.json(); }).then(function(vd) {
-          var vs = vd.content && vd.content[0] && vd.content[0].text || 'Could not extract.';
+    if (fileText.trim().length < 20 && (isPdfUp || isImgUp)) {
+      var b64up = req.file.buffer.toString('base64');
+      var vMimeUp = isPdfUp ? 'application/pdf' : (fileMime || 'image/jpeg');
+      var vBody = isPdfUp
+        ? [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64up } }, { type: 'text', text: 'Analyse this supplier catalogue/document. Extract all products, prices, MOQ, contacts. Provide a structured summary.' }]
+        : [{ type: 'image', source: { type: 'base64', media_type: vMimeUp, data: b64up } }, { type: 'text', text: 'This is a supplier catalogue image. Extract all visible products, prices, MOQ, and contacts.' }];
+      if (uploadId) supabase.from('catalogue_uploads').update({ analysis_status: 'processing' }).eq('id', uploadId);
+      fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, messages: [{ role: 'user', content: vBody }] }) })
+        .then(function(vr) { return vr.json(); })
+        .then(function(vd) {
+          var vs = vd.content && vd.content[0] && vd.content[0].text || 'Could not extract content.';
           if (uploadId) supabase.from('catalogue_uploads').update({ analysis_status: 'done', summary: vs.slice(0,2000), products_extracted: 0 }).eq('id', uploadId);
           supabase.from('chat_messages').insert({ session_id: sid, role: 'assistant', content: ('📎 *'+(req.file.originalname||'file')+'*\n\n'+vs).slice(0,2000), source: 'web', telegram_user: 'Valeran' }).catch(function(){});
-        }).catch(function(ve) { if (uploadId) supabase.from('catalogue_uploads').update({ analysis_status: 'failed', summary: ve.message }).eq('id', uploadId); });
-      return;
+        })
+        .catch(function(ve) { if (uploadId) supabase.from('catalogue_uploads').update({ analysis_status: 'failed', summary: ve.message }).eq('id', uploadId); });
+      return res.json({ success: true, uploadId: uploadId, filename: req.file.originalname, message: 'Scanning with AI vision...' });
     }
     if (fileText.trim().length < 20) {
       if (uploadId) await supabase.from('catalogue_uploads').update({ analysis_status: 'failed', summary: 'Could not extract text.' }).eq('id', uploadId);
@@ -116,8 +117,8 @@ app.post('/api/catalogue/upload', requireAuth, upload.single('file'), async func
     res.json({ success: true, uploadId: uploadId, filename: req.file.originalname, message: 'Analysing...' });
     core.analyseCatalogue(fileText, req.body.supplier_id || null, sid, uploadId)
     .then(function(result) {
-      var chatMsg = '📎 *' + (req.file.originalname || 'file') + '* — ' + (result.count || 0) + ' products extracted.\n\n' + (result.summary || 'Analysis complete.');
-      supabase.from('chat_messages').insert({ session_id: sid, role: 'assistant', content: chatMsg.slice(0,2000), source: 'web', telegram_user: 'Valeran' }).catch(function(){});
+      var msg2 = '📎 *' + (req.file.originalname || 'file') + '* — ' + (result.count || 0) + ' products extracted.\n\n' + (result.summary || 'Analysis complete.');
+      supabase.from('chat_messages').insert({ session_id: sid, role: 'assistant', content: msg2.slice(0,2000), source: 'web', telegram_user: 'Valeran' }).catch(function(){});
     })
     .catch(function(e) {
       if (uploadId) supabase.from('catalogue_uploads').update({ analysis_status: 'failed' }).eq('id', uploadId);
@@ -295,11 +296,9 @@ async function tgSend(chatId, text, replyToId) {
 // For text: takes 3-5s ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ within Telegram's window.
 
 app.post('/api/telegram/webhook', async function(req, res) {
-  res.sendStatus(200);
-  setImmediate(async function() {
   var body = req.body || {};
   var msg  = body.message || body.channel_post || body.edited_message;
-  if (!msg) { return; }
+  if (!msg) { res.sendStatus(200); return; }
 
   var from   = (msg.from && msg.from.first_name) || 'Partner';
   var chatId = msg.chat && msg.chat.id;
@@ -382,7 +381,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
       await core.saveMessage(sid,'user',from+' sent: '+fname,null,'telegram',from);
       await core.saveMessage(sid,'assistant',reply,null,'telegram','Valeran');
     } catch(e){ console.error('[TG file]',e.message); await tgSend(chatId,'Could not process "'+fname+'": '+e.message,msg.message_id); }
-    return;
+    res.sendStatus(200); return;
   }
 
   // ---- VOICE (Telegram) ----
@@ -423,7 +422,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
 
       if (!transcript) {
         await tgSend(chatId, 'Could not transcribe. Speak clearly closer to mic, or type instead.', msg.message_id);
-        return;
+        res.sendStatus(200); return;
       }
 
       // Show transcript so the whole group sees what was said
@@ -450,7 +449,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
       vMsgs.push({ role: 'user', content: vQuery });
 
       var vReply = await core.callAI(vMsgs, TG_SYSTEM + vSystemExtra + vMem, 500, 18000);
-      if (!vReply) { return; }
+      if (!vReply) { res.sendStatus(200); return; }
 
       // Split response and LOGGED section if present
       if (vReply.indexOf('LOGGED:') > -1) {
@@ -471,21 +470,21 @@ app.post('/api/telegram/webhook', async function(req, res) {
       console.error('[TG voice]', ve.message);
       await tgSend(chatId, 'Voice error: ' + ve.message, msg.message_id);
     }
-    return;
+    res.sendStatus(200); return;
   }
 
   // ---- TEXT ----
   var text = (msg.text && msg.text.trim()) || '';
-  if (!text) { return; }
+  if (!text) { res.sendStatus(200); return; }
 
   // Strict: must start with 'Valeran,' or 'Valera,' (with separator) Ã¢ÂÂ prevents matching 'Valentina' etc
   var isPrefix  = /^(valeran|valera)[,\s!?.]/i.test(text) || /^\u0432\u0430\u043b\u0435\u0440\u0430[,\s!?.]/i.test(text);
   var isMention = text.indexOf('@ValeranSV_bot') > -1;
   var isReply = !!(msg.reply_to_message && msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
-  var isReply = !!(msg.reply_to_message && msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
 
   if (!isPrefix && !isMention && !isReply) {
     core.saveMessage(sid, 'user', from + ': ' + text, null, 'telegram', from).catch(function() {});
+    res.sendStatus(200);
     return;
   }
 
@@ -506,14 +505,14 @@ app.post('/api/telegram/webhook', async function(req, res) {
     msgs.push({ role: 'user', content: query });
 
     var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 18000);
-    if (!reply) { return; }
+    if (!reply) { res.sendStatus(200); return; }
 
     await tgSend(chatId, reply, msg.message_id);
     core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from).catch(function() {});
     core.saveMessage(sid, 'assistant', reply, null, 'telegram', 'Valeran').catch(function() {});
   } catch(e) { console.error('[TG]', e.message); }
 
-  }); // end setImmediate
+  res.sendStatus(200);
 });
 
 // ---- CRON ----
