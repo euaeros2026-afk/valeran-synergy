@@ -1,5 +1,5 @@
 /* ============================================================
-   VALERAN ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ App CSS
+   VALERAN ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ App CSS
    Responsive, mobile-first, works on all screen sizes
    ============================================================ */
 
@@ -34,12 +34,12 @@ body {
 }
 
 /* ============================================================
-   APP SHELL ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ fills viewport exactly
+   APP SHELL ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ fills viewport exactly
    ============================================================ */
 .app {
   display: flex;
   flex-direction: column;
-  height: 100dvh; /* dynamic viewport height ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ handles mobile browser chrome */
+  height: 100dvh; /* dynamic viewport height ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ handles mobile browser chrome */
   width: 100%;
   overflow: hidden;
 }
@@ -116,7 +116,7 @@ body {
   overflow: hidden;
 }
 
-/* Header ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ fixed at top, doesn't scroll */
+/* Header ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ fixed at top, doesn't scroll */
 .chat-header {
   display: flex;
   align-items: center;
@@ -141,7 +141,7 @@ body {
   box-shadow: 0 0 6px var(--valeran);
 }
 
-/* Messages ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ scrollable area */
+/* Messages ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ scrollable area */
 .messages-list {
   flex: 1;
   overflow-y: auto;
@@ -222,7 +222,7 @@ body {
   border: 1px solid rgba(255,107,107,0.2);
 }
 
-/* Input bar ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ fixed at bottom */
+/* Input bar ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ fixed at bottom */
 .chat-input-bar {
   display: flex;
   align-items: center;
@@ -461,3 +461,6 @@ button.btn-danger { background: var(--danger); color: #fff; }
 div:hover > .reply-btn { opacity: 1 !important; }
 /* Also show on touch devices via the wrapper */
 div:active > .reply-btn { opacity: 1 !important; }
+
+/* Reply button shows on bubble wrapper hover */
+div:hover > .reply-btn { opacity: 1 !important; }
