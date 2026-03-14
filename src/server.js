@@ -38,13 +38,31 @@ app.get('/api/debug/ai', async function(req, res) {
   } catch(e) { res.json({ error: e.message }); }
 });
 
+
+// Save a team message (no AI response) — for group chat between members
+app.post('/api/chat/send', requireAuth, async function(req, res) {
+  if (!req.body.text) return res.status(400).json({ error: 'No text' });
+  var sid = req.body.session_id || (await getActiveSessionId()) || 'default';
+  var senderName = (req.partner && req.partner.name) || req.user.email.split('@')[0];
+  // Save with the sender's name prefixed so everyone sees who said it
+  await supabase.from('chat_messages').insert({
+    session_id: sid,
+    partner_id: req.partner && req.partner.id || null,
+    role: 'user',
+    content: req.body.text,
+    source: 'web',
+    telegram_user: senderName
+  });
+  res.json({ saved: true, session_id: sid });
+});
+
 app.post('/api/chat/message', requireAuth, async function(req, res) {
   if (!req.body.text) return res.status(400).json({ error: 'No text' });
   var sid = req.body.session_id || (await getActiveSessionId()) || 'default';
   try {
     var result = await core.processMessage({ text: req.body.text, partnerId: req.partner && req.partner.id, sessionId: sid });
-    res.json({ reply: result.reply || 'Noted.', session_id: sid, responded: result.responded });
-  } catch(e) { res.json({ reply: 'Error ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ try again.', session_id: sid }); }
+    res.json({ reply: result.responded ? result.reply : null, session_id: sid, responded: result.responded });
+  } catch(e) { res.json({ reply: 'Error ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ try again.', session_id: sid }); }
 });
 
 app.get('/api/chat/messages', requireAuth, async function(req, res) {
@@ -235,7 +253,7 @@ var TG_SYSTEM = 'You are Valeran, AI assistant for Synergy Ventures at Canton Fa
   'Team: Alexander (EN), Ina (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi (BG). ' +
   'LANGUAGE: reply in exact same language as the message. BG=BG, RU=RU, EN=EN. Never mix. ' +
   'STYLE: short and direct. 1-3 sentences for simple questions. No fluff. ' +
-  'Use [Context:...] when present ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ that is what someone replied to.';
+  'Use [Context:...] when present ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ that is what someone replied to.';
 
 async function tgSend(chatId, text, replyToId) {
   var body = { chat_id: chatId, text: text.slice(0, 4000) };
@@ -248,8 +266,8 @@ async function tgSend(chatId, text, replyToId) {
 // ---- TELEGRAM WEBHOOK ----
 // CRITICAL: ALL work happens BEFORE res.sendStatus(200).
 // Vercel kills async code after res.send().
-// For documents: takes 10-20s ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Telegram retries after 5s (harmless).
-// For text: takes 3-5s ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ within Telegram's window.
+// For documents: takes 10-20s ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Telegram retries after 5s (harmless).
+// For text: takes 3-5s ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ within Telegram's window.
 
 app.post('/api/telegram/webhook', async function(req, res) {
   var body = req.body || {};
@@ -287,7 +305,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
 
       // ---- LEVEL 1: Try direct text extraction ----
       var fileText = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
-      // Count actual words (3+ letter sequences) ÃÂ¢ÃÂÃÂ binary PDFs have scattered chars, not real words
+      // Count actual words (3+ letter sequences) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ binary PDFs have scattered chars, not real words
       var words = (fileText.match(/[a-zA-Z\u0400-\u04FF]{3,}/g) || []);
       var wordDensity = words.length / Math.max(1, buffer.length / 100);
       var hasRealText = words.length > 80 && wordDensity > 1.5;
@@ -366,11 +384,11 @@ app.post('/api/telegram/webhook', async function(req, res) {
       // ---- FALLBACK: save with caption, ask for text version ----
       if (!summary) {
         method = 'fallback';
-        summary = 'Saved "' + fname + '" ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ' +
+        summary = 'Saved "' + fname + '" ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ' +
           (cap ? '\nYour note: ' + cap : '') +
-          '\n\nThis PDF contains only scanned images ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ no readable text layer. To make it work:\n' +
-          '1. Open on PC ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ upload to Google Drive ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ right-click ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Open with Google Docs (auto-OCR)\n' +
-          '2. Download as .txt ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ send me that file\n' +
+          '\n\nThis PDF contains only scanned images ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ no readable text layer. To make it work:\n' +
+          '1. Open on PC ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ upload to Google Drive ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ right-click ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Open with Google Docs (auto-OCR)\n' +
+          '2. Download as .txt ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ send me that file\n' +
           'Or just tell me the key info in a message and I will remember it.';
       }
 
@@ -383,7 +401,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
       var reply = summary
         .replace(/^#{1,3}\s*/gm, '')           // remove ## headers
         .replace(/\*\*([^*]+)\*\*/g, '*$1*')  // convert **bold** to *bold*
-        .replace(/^\s*[Ã¢ÂÂ¢ÃÂ·]/gm, '-')             // convert bullet symbols to -
+        .replace(/^\s*[ÃÂ¢ÃÂÃÂ¢ÃÂÃÂ·]/gm, '-')             // convert bullet symbols to -
         .slice(0, 3900);
       if (method && method !== 'fallback') reply = reply + '\n\n_(' + method + ')_';
       await tgSend(chatId, reply, msg.message_id);
@@ -400,7 +418,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
   }
 
   // ---- VOICE (Telegram) ----
-  // Voice messages ALWAYS get a response — no trigger word needed
+  // Voice messages ALWAYS get a response â no trigger word needed
   if (msg.voice || msg.audio) {
     var vf = msg.voice || msg.audio;
     try {
@@ -507,7 +525,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
   if (msg.reply_to_message && msg.reply_to_message.text) {
     var rFrom = (msg.reply_to_message.from && msg.reply_to_message.from.first_name) || 'someone';
     var isBot = !!(msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
-    var ctx = isBot ? '[Context ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
+    var ctx = isBot ? '[Context ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
     query = ctx + '\n' + from + ' asks: ' + query;
   }
 
