@@ -1,59 +1,27 @@
-// ============================================================
-// VALERAN AI CORE â Memory-aware, context-rich, multilingual
-// Key fixes: uses chat_messages table, loads valeran_memory,
-// saves all conversations, learns from corrections
-// ============================================================
-const { createClient } = require('@supabase/supabase-js');
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const MODEL = 'claude-haiku-4-5-20251001';
+'use strict';
+var supabaseJs = require('@supabase/supabase-js');
+var supabase = supabaseJs.createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+var ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+var MODEL = 'claude-haiku-4-5-20251001';
 
-// ============================================================
-// BASE SYSTEM PROMPT (static knowledge)
-// ============================================================
-const BASE_SYSTEM = `You are Valeran â the AI assistant and field intelligence system for Synergy Ventures LLC-FZ.
+var BASE_SYSTEM = 'You are Valeran, the AI assistant for Synergy Ventures LLC-FZ at Canton Fair 2026 in Guangzhou, China. ' +
+  'Company: Synergy Ventures sources products from Chinese manufacturers and sells in the EU via Shopify + Instagram/Facebook. Goal: max ROI. Any category, any product. ' +
+  'Team: Alexander Oslan (owner, English), Ina Kanaplianikava (partner, Russian, at fair), Konstantin Khoch (partner, Russian, at fair), Konstantin Ganev (partner, Bulgarian, at fair), Slavi Mikinski (observer, Bulgarian, remote). ' +
+  'Canton Fair 2026: Phase 1 Apr 15-19 (electronics, hardware, lighting), Phase 2 Apr 23-27 (home goods, furniture, gifts), Phase 3 May 1-5 (fashion, textiles, toys). Location: Pazhou Complex Guangzhou. April weather: 22-28C humid rain - bring umbrella. ' +
+  'Margin formula: buy_usd x 0.92 = eur, x 1.12 freight, x 1.035 duty = landed. Net margin = (sell - landed - 15pct_fees - 10pct_ads) / sell. Target >35%. ' +
+  'Sourcing: 1688 (cheapest), Alibaba (export), Taobao (CN retail), AliPrice (reverse image). EU: Amazon DE/UK/FR, eMAG Bulgaria/Romania. ' +
+  'Compliance: CE (electronics/toys), RoHS (electronics), REACH (chemicals). Cost 500-5000 EUR per product. ' +
+  'LANGUAGE RULE - ABSOLUTE: detect input language and reply in EXACT same language. Bulgarian in = Bulgarian out. Russian in = Russian out. English in = English out. NEVER mix. ' +
+  'CONTEXT RULE: When message starts with [Context: ...] that is the replied-to message. USE IT FULLY. Never say you cannot see previous messages. ' +
+  'TESTING MODE: Currently March 2026, testing before Canton Fair. Learn from all corrections. ' +
+  'Personality: direct, confident, smart, practical. Max 200 words in Telegram unless full report. Can tell jokes.';
 
-COMPANY: Synergy Ventures sources products from Chinese manufacturers at Canton Fair and sells in EU via Shopify + Instagram/Facebook. Goal: maximum ROI on capital. Any category, any product â if numbers work, it's worth it.
-
-TEAM:
-- Alexander Oslan (owner, English, Dubai)
-- Ina Kanaplianikava (partner, Russian, at fair)
-- Konstantin Khoch (partner, Russian, at fair)
-- Konstantin Ganev (partner, Bulgarian, at fair)
-- Slavi Mikinski (observer, Bulgarian, remote â needs full BG translations)
-
-CANTON FAIR 2026:
-- Phase 1: Apr 15-19 â Electronics, lighting, hardware, machinery, smart home, tools
-- Phase 2: Apr 23-27 â Home goods, ceramics, furniture, garden, gifts, office
-- Phase 3: May 1-5 â Fashion, textiles, toys, personal care, food, accessories
-- Location: Pazhou Complex, Guangzhou. April weather: 22-28C, humid, frequent rain.
-
-MARGIN FORMULA (always show breakdown when asked):
-  Landed cost = factory_price_eur x 1.12 (freight) x 1.035 (avg duty)
-  Net margin % = (sell_price - landed_cost - platform_fees_15pct - ads_10pct) / sell_price x 100
-  Target: >35% net margin. Example: buy $4 = â¬3.65, landed = â¬4.24, sell â¬18, fees â¬4.50 â margin 51% â
-
-SCORING (1-5 each): category attractiveness, product demand, competition difficulty, sourcing feasibility, margin quality.
-
-COMPLIANCE FLAGS: CE (electronics/toys), RoHS (electronics), REACH (chemicals). Cost â¬500-5000 per product. Always mention for relevant categories.
-
-PLATFORMS: 1688 (cheapest, domestic CN), Alibaba (export), Taobao (CN retail), AliPrice (reverse image search), Amazon DE/UK/FR, eMAG (BG/RO).
-
-LANGUAGE RULE â ABSOLUTE: Detect input language. Reply in EXACT same language. Bulgarian in â Bulgarian out. Russian in â Russian out. English in â English out. Never mix. Never apologize for a language.
-
-REPLY CONTEXT RULE: When message starts with [Context: ...] â that IS the content being replied to. Use it fully. Never say you cannot see previous messages.
-
-PERSONALITY: Direct, confident, smart. Practical recommendations, not endless "it depends". Can be funny. Max 200 words in Telegram unless full report requested.`;
-
-// ============================================================
-// AI CALL
-// ============================================================
 async function callAI(messages, system, maxTokens, timeoutMs) {
   maxTokens = maxTokens || 600;
   timeoutMs = timeoutMs || 22000;
   system = system || BASE_SYSTEM;
   var ctrl = new AbortController();
-  var timer = setTimeout(function(){ ctrl.abort(); }, timeoutMs);
+  var timer = setTimeout(function() { ctrl.abort(); }, timeoutMs);
   try {
     var r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -63,178 +31,70 @@ async function callAI(messages, system, maxTokens, timeoutMs) {
     });
     clearTimeout(timer);
     var d = await r.json();
-    if (d.error) { console.error('[AI] error:', d.error.message); return null; }
+    if (d.error) { console.error('[AI]', d.error.message); return null; }
     return d.content && d.content[0] && d.content[0].text || null;
   } catch(e) {
     clearTimeout(timer);
     if (e.name === 'AbortError') { console.error('[AI] timeout'); return null; }
-    console.error('[AI] fetch error:', e.message);
+    console.error('[AI]', e.message);
     return null;
   }
 }
 
-// ============================================================
-// LOAD MEMORY (active facts, rules, corrections from DB)
-// ============================================================
-async function loadMemory() {
-  try {
-    var r = await supabase.from('valeran_memory').select('memory_type, subject, content').eq('active', true).order('created_at', { ascending: true }).limit(50);
-    if (!r.data || r.data.length === 0) return '';
-    var sections = { correction: [], preference: [], fact: [], business_rule: [], partner_profile: [] };
-    r.data.forEach(function(m) {
-      var key = m.memory_type || 'fact';
-      if (sections[key]) sections[key].push((m.subject ? '[' + m.subject + '] ' : '') + m.content);
-    });
-    var parts = [];
-    if (sections.business_rule.length) parts.push('ACTIVE RULES:\n' + sections.business_rule.join('\n'));
-    if (sections.correction.length) parts.push('CORRECTIONS (things I got wrong before â do NOT repeat):\n' + sections.correction.join('\n'));
-    if (sections.fact.length) parts.push('KNOWN FACTS:\n' + sections.fact.join('\n'));
-    if (sections.preference.length) parts.push('TEAM PREFERENCES:\n' + sections.preference.join('\n'));
-    if (sections.partner_profile.length) parts.push('PARTNER INFO:\n' + sections.partner_profile.join('\n'));
-    return parts.length ? '\n\n=== VALERAN MEMORY (loaded from DB) ===\n' + parts.join('\n\n') + '\n===' : '';
-  } catch(e) {
-    console.error('[memory] load error:', e.message);
-    return '';
-  }
-}
-
-// ============================================================
-// SAVE CORRECTION / FEEDBACK
-// ============================================================
-async function saveCorrection(content, partnerId, subject) {
-  try {
-    await supabase.from('valeran_memory').insert({
-      memory_type: 'correction',
-      subject: subject || 'user_feedback',
-      content: content,
-      source: 'feedback',
-      partner_id: partnerId || null,
-      active: true
-    });
-    console.log('[memory] correction saved:', content.slice(0,60));
-  } catch(e) {
-    console.error('[memory] save error:', e.message);
-  }
-}
-
-// ============================================================
-// DETECT CORRECTION IN MESSAGE
-// ============================================================
-function detectCorrection(text) {
-  var lower = text.toLowerCase();
-  var correctionPhrases = [
-    'that is wrong', 'thats wrong', 'you are wrong', 'incorrect', 'that\'s not right',
-    'wrong answer', 'you got it wrong', 'mistake', 'that was wrong',
-    'Ð½Ðµ Ðµ Ð²ÑÑÐ½Ð¾', 'Ð³ÑÐµÑÐ½Ð¾ Ðµ', 'Ð³ÑÐµÑÐºÐ°', 'Ð½Ðµ Ðµ Ð¿ÑÐ°Ð²Ð¸Ð»Ð½Ð¾',
-    'Ð½ÐµÐ¿ÑÐ°Ð²Ð¸Ð»ÑÐ½Ð¾', 'Ð¾ÑÐ¸Ð±ÐºÐ°', 'ÑÑÐ¾ Ð½ÐµÐ²ÐµÑÐ½Ð¾', 'Ð½Ðµ ÑÐ°Ðº'
-  ];
-  return correctionPhrases.some(function(p){ return lower.indexOf(p) > -1; });
-}
-
-// ============================================================
-// GET CONVERSATION HISTORY
-// ============================================================
-async function getChatHistory(sessionId, limit) {
-  limit = limit || 12;
-  try {
-    var r = await supabase.from('chat_messages').select('role, content')
-      .eq('session_id', sessionId)
-      .not('content', 'ilike', '__VALERAN_%')
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    return (r.data || []).reverse();
-  } catch(e) {
-    console.error('[history] load error:', e.message);
-    return [];
-  }
-}
-
-// ============================================================
-// SAVE MESSAGE TO DB
-// ============================================================
-async function saveMessage(sessionId, role, content, partnerId, source, telegramUser) {
-  try {
-    await supabase.from('chat_messages').insert({
-      session_id: sessionId || 'default',
-      partner_id: partnerId || null,
-      role: role,
-      content: content,
-      source: source || 'web',
-      telegram_user: telegramUser || null
-    });
-  } catch(e) {
-    console.error('[save] message error:', e.message);
-  }
-}
-
-// ============================================================
-// DETECT VALERAN TRIGGER
-// ============================================================
 function isValeranCalled(text) {
   if (!text) return false;
   var t = text.toLowerCase().trim();
-  return /^valeran/.test(t) || /^valera[,\s!?]/.test(t) ||
-         t.startsWith('\u0432\u0430\u043b\u0435\u0440\u0430\u043d') ||
-         t.startsWith('\u0432\u0430\u043b\u0435\u0440\u0430');
+  return /^valeran/.test(t) || /^valera[,\s!?]/.test(t) || t.indexOf('\u0432\u0430\u043b\u0435\u0440\u0430') === 0;
 }
 
-// ============================================================
-// PROCESS MESSAGE (web app)
-// ============================================================
-async function processMessage(opts) {
-  var text = opts.text;
-  var partnerId = opts.partnerId;
-  var sessionId = opts.sessionId || 'default';
-
-  if (!text) return { responded: false };
-
-  var triggered = isValeranCalled(text);
-  var isCorrection = detectCorrection(text);
-
-  // Save user message
-  await saveMessage(sessionId, 'user', text, partnerId, 'web', null);
-
-  // If it's a correction, save to memory
-  if (isCorrection) {
-    var correctionText = text.replace(/^(valeran|valera)[,\s!?]*/i, '').trim();
-    await saveCorrection('User said: ' + correctionText, partnerId, 'user_correction');
-  }
-
-  // Background entity extraction
-  extractEntities(text, partnerId, sessionId).catch(function(){});
-
-  if (!triggered) return { responded: false, silent: true };
-
-  // Load memory + history in parallel
-  var memoryAndHistory = await Promise.all([loadMemory(), getChatHistory(sessionId)]);
-  var memory = memoryAndHistory[0];
-  var history = memoryAndHistory[1];
-
-  var system = BASE_SYSTEM + memory;
-  var query = text.replace(/^(valeran|valera|\u0432\u0430\u043b\u0435\u0440\u0430\u043d|\u0432\u0430\u043b\u0435\u0440\u0430)[,\s!?]*/i, '').trim() || text;
-
-  var messages = history.map(function(m){ return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
-  messages.push({ role: 'user', content: query });
-
-  var reply = await callAI(messages, system, 700, 22000) || 'Sorry, having trouble connecting. Please try again.';
-
-  await saveMessage(sessionId, 'assistant', reply, null, 'web', null);
-
-  return { responded: true, reply: reply };
+async function loadMemory() {
+  try {
+    var r = await supabase.from('valeran_memory').select('memory_type, subject, content').eq('active', true).order('created_at', { ascending: true }).limit(50);
+    if (!r.data || !r.data.length) return '';
+    var rules = [], corrections = [], facts = [];
+    for (var i = 0; i < r.data.length; i++) {
+      var m = r.data[i];
+      var line = (m.subject ? '[' + m.subject + '] ' : '') + m.content;
+      if (m.memory_type === 'business_rule') rules.push(line);
+      else if (m.memory_type === 'correction') corrections.push(line);
+      else facts.push(line);
+    }
+    var parts = [];
+    if (rules.length) parts.push('ACTIVE RULES: ' + rules.join(' | '));
+    if (corrections.length) parts.push('CORRECTIONS (do NOT repeat these mistakes): ' + corrections.join(' | '));
+    if (facts.length) parts.push('KNOWN FACTS: ' + facts.join(' | '));
+    return parts.length ? ' === MEMORY === ' + parts.join(' === ') + ' ===' : '';
+  } catch(e) { return ''; }
 }
 
-// ============================================================
-// BACKGROUND ENTITY EXTRACTION
-// ============================================================
+async function saveCorrection(content, partnerId, subject) {
+  try {
+    await supabase.from('valeran_memory').insert({ memory_type: 'correction', subject: subject || 'feedback', content: content, source: 'feedback', partner_id: partnerId || null, active: true });
+  } catch(e) { console.error('[memory]', e.message); }
+}
+
+async function saveMessage(sessionId, role, content, partnerId, source, telegramUser) {
+  try {
+    await supabase.from('chat_messages').insert({ session_id: sessionId || 'default', partner_id: partnerId || null, role: role, content: content, source: source || 'web', telegram_user: telegramUser || null });
+  } catch(e) { console.error('[save]', e.message); }
+}
+
+async function getChatHistory(sessionId) {
+  try {
+    var r = await supabase.from('chat_messages').select('role, content').eq('session_id', sessionId).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(12);
+    return (r.data || []).reverse();
+  } catch(e) { return []; }
+}
+
 async function extractEntities(text, partnerId, sessionId) {
   if (!text || text.length < 20) return;
   try {
-    var prompt = 'Extract Canton Fair supplier/product data from this message. Return ONLY valid JSON.\nMessage: "' + text.slice(0,400) + '"\nReturn: {"has_supplier":false,"has_product":false,"supplier":{"name":null,"hall":null,"booth_number":null,"contact_person":null,"wechat":null},"product":{"name":null,"buy_price_usd":null,"notes":null}}';
-    var raw = await callAI([{ role: 'user', content: prompt }], 'Extract data, return only valid JSON, no explanation.', 250, 8000);
+    var prompt = 'Extract Canton Fair data from this message. Return ONLY valid JSON. Message: "' + text.slice(0, 400) + '" Return: {"has_supplier":false,"has_product":false,"supplier":{"name":null,"hall":null,"booth_number":null,"contact_person":null},"product":{"name":null,"buy_price_usd":null,"notes":null}}';
+    var raw = await callAI([{ role: 'user', content: prompt }], 'Extract data, return only valid JSON.', 200, 8000);
     if (!raw) return;
-    var data = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    var data = JSON.parse(raw.replace(/```json|```/g, '').trim());
     if (data.has_supplier && data.supplier && data.supplier.name) {
-      await supabase.from('suppliers').upsert({ name: data.supplier.name, hall: data.supplier.hall, booth_number: data.supplier.booth_number, contact_person: data.supplier.contact_person, wechat: data.supplier.wechat, session_id: sessionId, created_by: partnerId }, { onConflict: 'name', ignoreDuplicates: true });
+      await supabase.from('suppliers').upsert({ name: data.supplier.name, hall: data.supplier.hall, booth_number: data.supplier.booth_number, contact_person: data.supplier.contact_person, session_id: sessionId, created_by: partnerId }, { onConflict: 'name', ignoreDuplicates: true });
     }
     if (data.has_product && data.product && data.product.name) {
       await supabase.from('products').insert({ name: data.product.name, buy_price_usd: data.product.buy_price_usd, notes: data.product.notes, session_id: sessionId, created_by: partnerId });
@@ -242,97 +102,87 @@ async function extractEntities(text, partnerId, sessionId) {
   } catch(e) {}
 }
 
-// ============================================================
-// ANALYSE CATALOGUE (PDF/text content)
-// ============================================================
-async function analyseCatalogue(content, supplierId, sessionId, uploadId) {
-  var prompt = `You are analysing a supplier catalogue from Canton Fair. Extract ALL products with their details.
-Catalogue content:
-${content.slice(0, 6000)}
-
-Return a JSON array of products:
-[{"name":"...","description":"...","price_usd":null,"moq":null,"materials":"...","dimensions":"...","certifications":"...","notes":"..."}]
-Include every product you can find. Return ONLY the JSON array.`;
-
-  var raw = await callAI([{ role: 'user', content: prompt }], 'You are a product data extractor. Return only valid JSON arrays.', 2000, 30000);
-  if (!raw) return { products: [], summary: 'Analysis failed' };
-
-  var products = [];
-  try {
-    products = JSON.parse(raw.replace(/```json|```/g,'').trim());
-  } catch(e) {
-    console.error('[catalogue] parse error:', e.message);
+async function processMessage(opts) {
+  var text = opts.text;
+  var partnerId = opts.partnerId;
+  var sessionId = opts.sessionId || 'default';
+  if (!text) return { responded: false };
+  var triggered = isValeranCalled(text);
+  var isCorrection = /that.s wrong|wrong answer|incorrect|mistake|\u043d\u0435 \u0435 \u0432\u044f\u0440\u043d\u043e|\u0433\u0440\u0435\u0448\u043a\u0430|\u043d\u0435\u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u043e|\u043e\u0448\u0438\u0431\u043a\u0430/i.test(text);
+  await saveMessage(sessionId, 'user', text, partnerId, 'web', null);
+  if (isCorrection) {
+    var corrText = text.replace(/^(valeran|valera)[,\s!?]*/i, '').trim();
+    await saveCorrection('User correction: ' + corrText, partnerId, 'user_correction');
   }
-
-  // Save extracted products to DB
-  for (var pi = 0; pi < products.length; pi++) { var p = products[pi];
-    if (p.name) {
-      await supabase.from('products').insert({
-        name: p.name, notes: [p.description, p.materials, p.certifications].filter(Boolean).join(' | '),
-        buy_price_usd: p.price_usd || null, supplier_id: supplierId || null,
-        session_id: sessionId || 'default', category: 'Catalogue Import'
-      }).then(function(){}).catch(function(){});
-    }
-  }
-
-  var summary = await callAI([{ role: 'user', content: 'Summarise this supplier catalogue in 3 sentences, note key product categories, price range, and quality impression:\n' + content.slice(0,3000) }], BASE_SYSTEM, 300, 15000) || 'Catalogue analysed.';
-
-  // Update upload record
-  if (uploadId) {
-    await supabase.from('catalogue_uploads').update({ analysis_status: 'done', products_extracted: products.length, summary: summary, raw_analysis: { products: products.slice(0,50) } }).eq('id', uploadId);
-  }
-
-  return { products, summary, count: products.length };
+  extractEntities(text, partnerId, sessionId).catch(function() {});
+  if (!triggered) return { responded: false, silent: true };
+  var memAndHistory = await Promise.all([loadMemory(), getChatHistory(sessionId)]);
+  var memory = memAndHistory[0];
+  var history = memAndHistory[1];
+  var system = BASE_SYSTEM + memory;
+  var query = text.replace(/^(valeran|valera|\u0432\u0430\u043b\u0435\u0440\u0430\u043d|\u0432\u0430\u043b\u0435\u0440\u0430)[,\s!?]*/i, '').trim() || text;
+  var msgs = history.map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
+  msgs.push({ role: 'user', content: query });
+  var reply = await callAI(msgs, system, 700, 22000) || 'Sorry, having trouble connecting. Please try again.';
+  await saveMessage(sessionId, 'assistant', reply, null, 'web', null);
+  return { responded: true, reply: reply };
 }
 
-// ============================================================
-// GENERATE EVENING REPORT
-// ============================================================
+async function analyseCatalogue(content, supplierId, sessionId, uploadId) {
+  var prompt = 'Analyse this supplier catalogue from Canton Fair. Extract ALL products. Return a JSON array: [{"name":"...","description":"...","price_usd":null,"moq":null,"materials":"...","notes":"..."}]. Content: ' + content.slice(0, 5000);
+  var raw = await callAI([{ role: 'user', content: prompt }], 'You are a product data extractor. Return only a valid JSON array.', 2000, 30000);
+  var products = [];
+  if (raw) {
+    try { products = JSON.parse(raw.replace(/```json|```/g, '').trim()); } catch(e) {}
+  }
+  for (var i = 0; i < products.length; i++) {
+    var p = products[i];
+    if (p && p.name) {
+      await supabase.from('products').insert({ name: p.name, notes: [p.description, p.materials, p.notes].filter(Boolean).join(' | '), buy_price_usd: p.price_usd || null, supplier_id: supplierId || null, session_id: sessionId || 'default', category: 'Catalogue Import' }).catch(function() {});
+    }
+  }
+  var summary = await callAI([{ role: 'user', content: 'Summarise this supplier catalogue in 3 sentences: ' + content.slice(0, 2000) }], BASE_SYSTEM, 200, 12000) || 'Catalogue analysed.';
+  if (uploadId) {
+    await supabase.from('catalogue_uploads').update({ analysis_status: 'done', products_extracted: products.length, summary: summary }).eq('id', uploadId);
+  }
+  return { products: products, summary: summary, count: products.length };
+}
+
 async function generateEveningReport(sessionId, date) {
   var memory = await loadMemory();
   var system = BASE_SYSTEM + memory;
-  var products = await supabase.from('products').select('name, buy_price_usd, sell_price_eur, margin_pct, notes, category').eq('session_id', sessionId).gte('created_at', date).order('created_at', { ascending: false }).limit(15);
-  var suppliers = await supabase.from('suppliers').select('name, hall, booth_number, contact_person').eq('session_id', sessionId).gte('created_at', date).limit(10);
-  var meetings = await supabase.from('meetings').select('scheduled_at, notes').gte('scheduled_at', date).limit(8);
-  var research = await supabase.from('product_research').select('product_name, platform, price_eur, rating, top_complaints').gte('created_at', date).limit(10);
-
-  var prompt = 'Generate a structured EVENING REPORT for Synergy Ventures at Canton Fair 2026.\n' +
-    'Date: ' + date + '\n' +
-    'Products logged: ' + JSON.stringify((products.data||[]).slice(0,8)) + '\n' +
-    'Suppliers visited: ' + JSON.stringify((suppliers.data||[]).slice(0,5)) + '\n' +
-    'Tomorrow meetings: ' + JSON.stringify((meetings.data||[]).slice(0,5)) + '\n' +
-    'EU competitor data: ' + JSON.stringify((research.data||[]).slice(0,5)) + '\n\n' +
-    'STRUCTURE:\nð DAY SUMMARY â numbers\nð TOP PRODUCTS â top 3-5 with margin analysis and EU competitor comparison\nð­ SUPPLIER HIGHLIGHTS\nð TOMORROW â schedule and talking points\nâ¡ ACTION ITEMS\n\nMax 600 words. Be specific and actionable.';
-
+  var prods = await supabase.from('products').select('name, buy_price_usd, sell_price_eur, notes, category').eq('session_id', sessionId).gte('created_at', date).limit(15);
+  var supps = await supabase.from('suppliers').select('name, hall, booth_number').eq('session_id', sessionId).gte('created_at', date).limit(10);
+  var meets = await supabase.from('meetings').select('scheduled_at, notes').gte('scheduled_at', date).limit(8);
+  var research = await supabase.from('product_research').select('product_name, platform, price_eur, rating').gte('created_at', date).limit(10);
+  var prompt = 'Generate a structured EVENING REPORT for Synergy Ventures at Canton Fair 2026. Date: ' + date + '. Products logged: ' + JSON.stringify((prods.data||[]).slice(0,8)) + '. Suppliers visited: ' + JSON.stringify((supps.data||[]).slice(0,5)) + '. Tomorrow meetings: ' + JSON.stringify((meets.data||[]).slice(0,5)) + '. EU competitor research: ' + JSON.stringify((research.data||[]).slice(0,5)) + '. Structure: EMOJI DAY SUMMARY (numbers), EMOJI TOP PRODUCTS (top 3-5 with margin highlights), EMOJI SUPPLIER NOTES, EMOJI TOMORROW SCHEDULE, EMOJI ACTION ITEMS. Max 600 words.';
   var contentEn = await callAI([{ role: 'user', content: prompt }], system, 1200, 30000) || 'Report generation failed.';
-  var contentBg = await callAI([{ role: 'user', content: 'ÐÑÐµÐ²ÐµÐ´Ð¸ Ð½Ð° Ð±ÑÐ»Ð³Ð°ÑÑÐºÐ¸, Ð·Ð°Ð¿Ð°Ð·Ð¸ ÐµÐ¼Ð¾Ð´Ð¶Ð¸ÑÐ°ÑÐ° Ð¸ ÑÐ¾ÑÐ¼Ð°ÑÐ¸ÑÐ°Ð½ÐµÑÐ¾:\n\n' + contentEn }], 'ÐÑÐµÐ²ÐµÐ¶Ð´Ð°Ð¹ ÑÐ¾ÑÐ½Ð¾ Ð½Ð° Ð±ÑÐ»Ð³Ð°ÑÑÐºÐ¸.', 1200, 25000) || '';
-
+  var contentBg = await callAI([{ role: 'user', content: 'Translate to Bulgarian keeping emojis and structure: ' + contentEn }], 'Translate accurately to Bulgarian.', 1200, 25000) || '';
   var r = await supabase.from('reports').insert({ type: 'evening', session_id: sessionId, content: JSON.stringify({ en: contentEn, bg: contentBg }), created_at: new Date().toISOString() }).select().single();
-  return Object.assign({}, r.data || {}, { title: 'ð Evening Report Â· ' + date, content_en: contentEn, content_bg: contentBg });
+  return Object.assign({}, r.data || {}, { title: 'Evening Report - ' + date, content_en: contentEn, content_bg: contentBg });
 }
 
-// ============================================================
-// GENERATE MORNING REPORT
-// ============================================================
 async function generateMorningReport(sessionId, date) {
   var memory = await loadMemory();
   var system = BASE_SYSTEM + memory;
-  var products = await supabase.from('products').select('name, buy_price_usd, sell_price_eur, margin_pct, notes, category').eq('session_id', sessionId).order('created_at', { ascending: false }).limit(10);
-  var meetings = await supabase.from('meetings').select('scheduled_at, notes').gte('scheduled_at', date).limit(8);
-  var research = await supabase.from('product_research').select('product_name, platform, price_eur, rating, top_complaints, top_praises').order('created_at', { ascending: false }).limit(8);
-
-  var prompt = 'Generate a MORNING BRIEFING for Synergy Ventures at Canton Fair 2026.\n' +
-    'Date: ' + date + '\n' +
-    'Products to follow up: ' + JSON.stringify((products.data||[]).slice(0,6)) + '\n' +
-    'Today meetings: ' + JSON.stringify(meetings.data||[]) + '\n' +
-    'Overnight research findings: ' + JSON.stringify((research.data||[]).slice(0,5)) + '\n\n' +
-    'STRUCTURE:\nð GOOD MORNING â date + phase\nð¯ PRIORITY FOLLOW-UPS â specific questions to ask each supplier\nð TODAY AGENDA â each meeting with prep notes and key questions\nð EXPLORE TODAY â specific halls/categories worth visiting\nð¡ OVERNIGHT INSIGHT â key finding from EU/CN research\n\nMax 500 words. Be specific.';
-
-  var contentEn = await callAI([{ role: 'user', content: prompt }], system, 1000, 30000) || 'Morning briefing failed.';
-  var contentBg = await callAI([{ role: 'user', content: 'ÐÑÐµÐ²ÐµÐ´Ð¸ Ð½Ð° Ð±ÑÐ»Ð³Ð°ÑÑÐºÐ¸:\n\n' + contentEn }], 'ÐÑÐµÐ²ÐµÐ¶Ð´Ð°Ð¹ ÑÐ¾ÑÐ½Ð¾ Ð½Ð° Ð±ÑÐ»Ð³Ð°ÑÑÐºÐ¸.', 1000, 25000) || '';
-
+  var prods = await supabase.from('products').select('name, buy_price_usd, notes, category').eq('session_id', sessionId).order('created_at', { ascending: false }).limit(10);
+  var meets = await supabase.from('meetings').select('scheduled_at, notes').gte('scheduled_at', date).limit(8);
+  var research = await supabase.from('product_research').select('product_name, platform, price_eur, rating').order('created_at', { ascending: false }).limit(8);
+  var prompt = 'Generate a MORNING BRIEFING for Synergy Ventures at Canton Fair 2026. Date: ' + date + '. Products to follow up: ' + JSON.stringify((prods.data||[]).slice(0,6)) + '. Today meetings: ' + JSON.stringify(meets.data||[]) + '. Research findings: ' + JSON.stringify((research.data||[]).slice(0,5)) + '. Structure: EMOJI GOOD MORNING (date+phase), EMOJI PRIORITY FOLLOW-UPS (specific supplier questions), EMOJI TODAY AGENDA (each meeting with prep), EMOJI EXPLORE TODAY (halls/categories), EMOJI KEY INSIGHT. Max 500 words.';
+  var contentEn = await callAI([{ role: 'user', content: prompt }], system, 1000, 30000) || 'Morning report failed.';
+  var contentBg = await callAI([{ role: 'user', content: 'Translate to Bulgarian: ' + contentEn }], 'Translate accurately to Bulgarian.', 1000, 25000) || '';
   var r = await supabase.from('reports').insert({ type: 'morning', session_id: sessionId, content: JSON.stringify({ en: contentEn, bg: contentBg }), created_at: new Date().toISOString() }).select().single();
-  return Object.assign({}, r.data || {}, { title: 'ð Morning Briefing Â· ' + date, content_en: contentEn, content_bg: contentBg });
+  return Object.assign({}, r.data || {}, { title: 'Morning Briefing - ' + date, content_en: contentEn, content_bg: contentBg });
 }
 
-module.exports = { processMessage, generateEveningReport, generateMorningReport, isValeranCalled, callAI, saveMessage, loadMemory, saveCorrection, analyseCatalogue };
+module.exports = {
+  processMessage: processMessage,
+  generateEveningReport: generateEveningReport,
+  generateMorningReport: generateMorningReport,
+  isValeranCalled: isValeranCalled,
+  callAI: callAI,
+  saveMessage: saveMessage,
+  loadMemory: loadMemory,
+  saveCorrection: saveCorrection,
+  analyseCatalogue: analyseCatalogue
+};
