@@ -179,7 +179,7 @@ app.post('/api/chat/voice', requireAuth, upload.single('audio'), async function(
 
 app.get('/api/suppliers', requireAuth, async function(req, res) {
   var q = supabase.from('suppliers').select('*').order('created_at', { ascending: false }).limit(parseInt(req.query.limit) || 50);
-  if (req.query.search) q = q.ilike('name', '%' + req.query.search + '%');
+  if (req.query.search) q = q.ilike('company_name', '%' + req.query.search + '%');
   var r = await q; res.json(r.error ? { error: r.error } : { suppliers: r.data || [] });
 });
 app.get('/api/suppliers/:id', requireAuth, async function(req, res) {
@@ -188,7 +188,7 @@ app.get('/api/suppliers/:id', requireAuth, async function(req, res) {
   res.json({ supplier: s.data, products: p.data || [] });
 });
 app.post('/api/suppliers', requireAuth, async function(req, res) {
-  var r = await supabase.from('suppliers').insert(Object.assign({}, req.body, { created_by: req.partner && req.partner.id })).select().single();
+  var r = await supabase.from('suppliers').insert(req.body).select().single();
   res.json(r.error ? { error: r.error } : { supplier: r.data });
 });
 app.patch('/api/suppliers/:id', requireAuth, async function(req, res) {
@@ -201,7 +201,7 @@ app.get('/api/products', requireAuth, async function(req, res) {
   var r = await q; res.json(r.error ? { error: r.error } : { products: r.data || [] });
 });
 app.post('/api/products', requireAuth, async function(req, res) {
-  var r = await supabase.from('products').insert(Object.assign({}, req.body, { created_by: req.partner && req.partner.id })).select().single();
+  var r = await supabase.from('products').insert(req.body).select().single();
   res.json(r.error ? { error: r.error } : { product: r.data });
 });
 app.patch('/api/products/:id', requireAuth, async function(req, res) {
