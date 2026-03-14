@@ -1,5 +1,5 @@
 // ============================================================
-// VALERAN AI CORE — Memory-aware, context-rich, multilingual
+// VALERAN AI CORE â Memory-aware, context-rich, multilingual
 // Key fixes: uses chat_messages table, loads valeran_memory,
 // saves all conversations, learns from corrections
 // ============================================================
@@ -11,37 +11,37 @@ const MODEL = 'claude-haiku-4-5-20251001';
 // ============================================================
 // BASE SYSTEM PROMPT (static knowledge)
 // ============================================================
-const BASE_SYSTEM = `You are Valeran — the AI assistant and field intelligence system for Synergy Ventures LLC-FZ.
+const BASE_SYSTEM = `You are Valeran â the AI assistant and field intelligence system for Synergy Ventures LLC-FZ.
 
-COMPANY: Synergy Ventures sources products from Chinese manufacturers at Canton Fair and sells in EU via Shopify + Instagram/Facebook. Goal: maximum ROI on capital. Any category, any product — if numbers work, it's worth it.
+COMPANY: Synergy Ventures sources products from Chinese manufacturers at Canton Fair and sells in EU via Shopify + Instagram/Facebook. Goal: maximum ROI on capital. Any category, any product â if numbers work, it's worth it.
 
 TEAM:
 - Alexander Oslan (owner, English, Dubai)
 - Ina Kanaplianikava (partner, Russian, at fair)
 - Konstantin Khoch (partner, Russian, at fair)
 - Konstantin Ganev (partner, Bulgarian, at fair)
-- Slavi Mikinski (observer, Bulgarian, remote — needs full BG translations)
+- Slavi Mikinski (observer, Bulgarian, remote â needs full BG translations)
 
 CANTON FAIR 2026:
-- Phase 1: Apr 15-19 — Electronics, lighting, hardware, machinery, smart home, tools
-- Phase 2: Apr 23-27 — Home goods, ceramics, furniture, garden, gifts, office
-- Phase 3: May 1-5 — Fashion, textiles, toys, personal care, food, accessories
+- Phase 1: Apr 15-19 â Electronics, lighting, hardware, machinery, smart home, tools
+- Phase 2: Apr 23-27 â Home goods, ceramics, furniture, garden, gifts, office
+- Phase 3: May 1-5 â Fashion, textiles, toys, personal care, food, accessories
 - Location: Pazhou Complex, Guangzhou. April weather: 22-28C, humid, frequent rain.
 
 MARGIN FORMULA (always show breakdown when asked):
   Landed cost = factory_price_eur x 1.12 (freight) x 1.035 (avg duty)
   Net margin % = (sell_price - landed_cost - platform_fees_15pct - ads_10pct) / sell_price x 100
-  Target: >35% net margin. Example: buy $4 = €3.65, landed = €4.24, sell €18, fees €4.50 → margin 51% ✅
+  Target: >35% net margin. Example: buy $4 = â¬3.65, landed = â¬4.24, sell â¬18, fees â¬4.50 â margin 51% â
 
 SCORING (1-5 each): category attractiveness, product demand, competition difficulty, sourcing feasibility, margin quality.
 
-COMPLIANCE FLAGS: CE (electronics/toys), RoHS (electronics), REACH (chemicals). Cost €500-5000 per product. Always mention for relevant categories.
+COMPLIANCE FLAGS: CE (electronics/toys), RoHS (electronics), REACH (chemicals). Cost â¬500-5000 per product. Always mention for relevant categories.
 
 PLATFORMS: 1688 (cheapest, domestic CN), Alibaba (export), Taobao (CN retail), AliPrice (reverse image search), Amazon DE/UK/FR, eMAG (BG/RO).
 
-LANGUAGE RULE — ABSOLUTE: Detect input language. Reply in EXACT same language. Bulgarian in → Bulgarian out. Russian in → Russian out. English in → English out. Never mix. Never apologize for a language.
+LANGUAGE RULE â ABSOLUTE: Detect input language. Reply in EXACT same language. Bulgarian in â Bulgarian out. Russian in â Russian out. English in â English out. Never mix. Never apologize for a language.
 
-REPLY CONTEXT RULE: When message starts with [Context: ...] — that IS the content being replied to. Use it fully. Never say you cannot see previous messages.
+REPLY CONTEXT RULE: When message starts with [Context: ...] â that IS the content being replied to. Use it fully. Never say you cannot see previous messages.
 
 PERSONALITY: Direct, confident, smart. Practical recommendations, not endless "it depends". Can be funny. Max 200 words in Telegram unless full report requested.`;
 
@@ -87,7 +87,7 @@ async function loadMemory() {
     });
     var parts = [];
     if (sections.business_rule.length) parts.push('ACTIVE RULES:\n' + sections.business_rule.join('\n'));
-    if (sections.correction.length) parts.push('CORRECTIONS (things I got wrong before — do NOT repeat):\n' + sections.correction.join('\n'));
+    if (sections.correction.length) parts.push('CORRECTIONS (things I got wrong before â do NOT repeat):\n' + sections.correction.join('\n'));
     if (sections.fact.length) parts.push('KNOWN FACTS:\n' + sections.fact.join('\n'));
     if (sections.preference.length) parts.push('TEAM PREFERENCES:\n' + sections.preference.join('\n'));
     if (sections.partner_profile.length) parts.push('PARTNER INFO:\n' + sections.partner_profile.join('\n'));
@@ -125,8 +125,8 @@ function detectCorrection(text) {
   var correctionPhrases = [
     'that is wrong', 'thats wrong', 'you are wrong', 'incorrect', 'that\'s not right',
     'wrong answer', 'you got it wrong', 'mistake', 'that was wrong',
-    'не е вярно', 'грешно е', 'грешка', 'не е правилно',
-    'неправильно', 'ошибка', 'это неверно', 'не так'
+    'Ð½Ðµ Ðµ Ð²ÑÑÐ½Ð¾', 'Ð³ÑÐµÑÐ½Ð¾ Ðµ', 'Ð³ÑÐµÑÐºÐ°', 'Ð½Ðµ Ðµ Ð¿ÑÐ°Ð²Ð¸Ð»Ð½Ð¾',
+    'Ð½ÐµÐ¿ÑÐ°Ð²Ð¸Ð»ÑÐ½Ð¾', 'Ð¾ÑÐ¸Ð±ÐºÐ°', 'ÑÑÐ¾ Ð½ÐµÐ²ÐµÑÐ½Ð¾', 'Ð½Ðµ ÑÐ°Ðº'
   ];
   return correctionPhrases.some(function(p){ return lower.indexOf(p) > -1; });
 }
@@ -265,7 +265,7 @@ Include every product you can find. Return ONLY the JSON array.`;
   }
 
   // Save extracted products to DB
-  for (var p of products) {
+  for (var pi = 0; pi < products.length; pi++) { var p = products[pi];
     if (p.name) {
       await supabase.from('products').insert({
         name: p.name, notes: [p.description, p.materials, p.certifications].filter(Boolean).join(' | '),
@@ -302,13 +302,13 @@ async function generateEveningReport(sessionId, date) {
     'Suppliers visited: ' + JSON.stringify((suppliers.data||[]).slice(0,5)) + '\n' +
     'Tomorrow meetings: ' + JSON.stringify((meetings.data||[]).slice(0,5)) + '\n' +
     'EU competitor data: ' + JSON.stringify((research.data||[]).slice(0,5)) + '\n\n' +
-    'STRUCTURE:\n📊 DAY SUMMARY — numbers\n🏆 TOP PRODUCTS — top 3-5 with margin analysis and EU competitor comparison\n🏭 SUPPLIER HIGHLIGHTS\n📅 TOMORROW — schedule and talking points\n⚡ ACTION ITEMS\n\nMax 600 words. Be specific and actionable.';
+    'STRUCTURE:\nð DAY SUMMARY â numbers\nð TOP PRODUCTS â top 3-5 with margin analysis and EU competitor comparison\nð­ SUPPLIER HIGHLIGHTS\nð TOMORROW â schedule and talking points\nâ¡ ACTION ITEMS\n\nMax 600 words. Be specific and actionable.';
 
   var contentEn = await callAI([{ role: 'user', content: prompt }], system, 1200, 30000) || 'Report generation failed.';
-  var contentBg = await callAI([{ role: 'user', content: 'Преведи на български, запази емоджитата и форматирането:\n\n' + contentEn }], 'Превеждай точно на български.', 1200, 25000) || '';
+  var contentBg = await callAI([{ role: 'user', content: 'ÐÑÐµÐ²ÐµÐ´Ð¸ Ð½Ð° Ð±ÑÐ»Ð³Ð°ÑÑÐºÐ¸, Ð·Ð°Ð¿Ð°Ð·Ð¸ ÐµÐ¼Ð¾Ð´Ð¶Ð¸ÑÐ°ÑÐ° Ð¸ ÑÐ¾ÑÐ¼Ð°ÑÐ¸ÑÐ°Ð½ÐµÑÐ¾:\n\n' + contentEn }], 'ÐÑÐµÐ²ÐµÐ¶Ð´Ð°Ð¹ ÑÐ¾ÑÐ½Ð¾ Ð½Ð° Ð±ÑÐ»Ð³Ð°ÑÑÐºÐ¸.', 1200, 25000) || '';
 
   var r = await supabase.from('reports').insert({ type: 'evening', session_id: sessionId, content: JSON.stringify({ en: contentEn, bg: contentBg }), created_at: new Date().toISOString() }).select().single();
-  return Object.assign({}, r.data || {}, { title: '📊 Evening Report · ' + date, content_en: contentEn, content_bg: contentBg });
+  return Object.assign({}, r.data || {}, { title: 'ð Evening Report Â· ' + date, content_en: contentEn, content_bg: contentBg });
 }
 
 // ============================================================
@@ -326,13 +326,13 @@ async function generateMorningReport(sessionId, date) {
     'Products to follow up: ' + JSON.stringify((products.data||[]).slice(0,6)) + '\n' +
     'Today meetings: ' + JSON.stringify(meetings.data||[]) + '\n' +
     'Overnight research findings: ' + JSON.stringify((research.data||[]).slice(0,5)) + '\n\n' +
-    'STRUCTURE:\n🌅 GOOD MORNING — date + phase\n🎯 PRIORITY FOLLOW-UPS — specific questions to ask each supplier\n📅 TODAY AGENDA — each meeting with prep notes and key questions\n🔍 EXPLORE TODAY — specific halls/categories worth visiting\n💡 OVERNIGHT INSIGHT — key finding from EU/CN research\n\nMax 500 words. Be specific.';
+    'STRUCTURE:\nð GOOD MORNING â date + phase\nð¯ PRIORITY FOLLOW-UPS â specific questions to ask each supplier\nð TODAY AGENDA â each meeting with prep notes and key questions\nð EXPLORE TODAY â specific halls/categories worth visiting\nð¡ OVERNIGHT INSIGHT â key finding from EU/CN research\n\nMax 500 words. Be specific.';
 
   var contentEn = await callAI([{ role: 'user', content: prompt }], system, 1000, 30000) || 'Morning briefing failed.';
-  var contentBg = await callAI([{ role: 'user', content: 'Преведи на български:\n\n' + contentEn }], 'Превеждай точно на български.', 1000, 25000) || '';
+  var contentBg = await callAI([{ role: 'user', content: 'ÐÑÐµÐ²ÐµÐ´Ð¸ Ð½Ð° Ð±ÑÐ»Ð³Ð°ÑÑÐºÐ¸:\n\n' + contentEn }], 'ÐÑÐµÐ²ÐµÐ¶Ð´Ð°Ð¹ ÑÐ¾ÑÐ½Ð¾ Ð½Ð° Ð±ÑÐ»Ð³Ð°ÑÑÐºÐ¸.', 1000, 25000) || '';
 
   var r = await supabase.from('reports').insert({ type: 'morning', session_id: sessionId, content: JSON.stringify({ en: contentEn, bg: contentBg }), created_at: new Date().toISOString() }).select().single();
-  return Object.assign({}, r.data || {}, { title: '🌅 Morning Briefing · ' + date, content_en: contentEn, content_bg: contentBg });
+  return Object.assign({}, r.data || {}, { title: 'ð Morning Briefing Â· ' + date, content_en: contentEn, content_bg: contentBg });
 }
 
 module.exports = { processMessage, generateEveningReport, generateMorningReport, isValeranCalled, callAI, saveMessage, loadMemory, saveCorrection, analyseCatalogue };
