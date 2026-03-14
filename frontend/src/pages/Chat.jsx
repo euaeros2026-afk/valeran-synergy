@@ -27,7 +27,7 @@ export default function Chat({ supabase, partner }) {
   const mediaRef=useRef(null),bottomRef=useRef(null),fileRef=useRef(null),cameraRef=useRef(null),inputRef=useRef(null)
   const pingRef=useRef(null),typingTimer=useRef({}),broadcastCh=useRef(null),myTempIds=useRef(new Set())
 
-  // The logged-in user's name Ã¢ÂÂ single source of truth
+  // The logged-in user's name ÃÂ¢ÃÂÃÂ single source of truth
   const myName = (partner&&partner.name)||''
 
   useEffect(()=>{
@@ -114,7 +114,7 @@ export default function Chat({ supabase, partner }) {
   function isValeran(msg){return msg.role==='assistant'}
   function isMine(msg){
     if(isValeran(msg))return false
-    // _mine is set at load time and on realtime delivery Ã¢ÂÂ most reliable
+    // _mine is set at load time and on realtime delivery ÃÂ¢ÃÂÃÂ most reliable
     if(msg._mine)return true
     // Temp messages added optimistically are always ours
     if(myTempIds.current.has(msg.id))return true
@@ -126,22 +126,33 @@ export default function Chat({ supabase, partner }) {
   async function sendMessage(){
     var text=input.trim();if(!text||sending)return
     setError(null);setSending(true);setInput('')
-    var isAI=/^(valeran|valera|ÃÂ²ÃÂ°ÃÂ»ÃÂµÃÂÃÂ°)[,s!?.]/i.test(text)
+    var fullText=text
+    if(replyTo){
+      fullText='[Replying to '+replyTo.senderName+': "'+replyTo.content.slice(0,80)+(replyTo.content.length>80?'...':'')+'"]
+'+text
+      setReplyTo(null)
+    }
+    var isAI=/^(valeran|valera|валера)[,s!?.]/i.test(text)
+    // Add optimistic temp message — NEVER remove it manually.
+    // Realtime dedup will swap it for the real DB message when it arrives.
     var tempId='tmp-'+Date.now();myTempIds.current.add(tempId)
-    setMessages(p=>[...p,{id:tempId,role:'user',content:fullText,telegram_user:myName,_mine:true,created_at:new Date().toISOString()}])
+    setMessages(p=>[...p,{id:tempId,role:'user',content:fullText,telegram_user:myNameRef.current,_mine:true,created_at:new Date().toISOString()}])
     try{
       const t=await getToken()
       if(isAI){
         const r=await fetch(API+'/api/chat/message',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify({text:fullText,session_id:'team-chat'})})
         const d=await r.json()
-        setMessages(p=>p.filter(m=>m.id!==tempId)) // realtime delivers real msg
+        // Add Valeran reply right away (don't wait for realtime for AI responses)
         if(d.reply)setMessages(p=>[...p,{id:'va-'+Date.now(),role:'assistant',content:d.reply,_mine:false,created_at:new Date().toISOString()}])
       }else{
         await fetch(API+'/api/chat/send',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify({text:fullText,session_id:'team-chat'})})
-        setMessages(p=>p.filter(m=>m.id!==tempId)) // realtime delivers real msg
+        // Temp stays visible — realtime will replace it with real DB message
       }
-    }catch(e){setError('Error sending');setMessages(p=>p.filter(m=>m.id!==tempId));myTempIds.current.delete(tempId)}
-    finally{setSending(false)}
+    }catch(e){
+      setError('Error sending')
+      setMessages(p=>p.filter(m=>m.id!==tempId))
+      myTempIds.current.delete(tempId)
+    }finally{setSending(false)}
   }
 
   async function sendPhoto(file){
@@ -149,11 +160,11 @@ export default function Chat({ supabase, partner }) {
     const fd=new FormData();fd.append('photo',file)
     if(input.trim()){fd.append('caption',input);setInput('')}
     var tempId='tmp-ph-'+Date.now();myTempIds.current.add(tempId)
-    setMessages(p=>[...p,{id:tempId,role:'user',content:'Ã°ÂÂÂ· '+file.name,telegram_user:myName,_mine:true,created_at:new Date().toISOString()}])
+    setMessages(p=>[...p,{id:tempId,role:'user',content:'ÃÂ°ÃÂÃÂÃÂ· '+file.name,telegram_user:myName,_mine:true,created_at:new Date().toISOString()}])
     try{
       const r=await fetch(API+'/api/chat/photo',{method:'POST',headers:{Authorization:'Bearer '+t},body:fd})
       const d=await r.json()
-      setMessages(p=>{const f=p.filter(m=>m.id!==tempId);f.push({id:'ph-u-'+Date.now(),role:'user',content:'Ã°ÂÂÂ· '+file.name,telegram_user:myName,_mine:true,created_at:new Date().toISOString()});if(d.reply)f.push({id:'ph-a-'+Date.now(),role:'assistant',content:d.reply,_mine:false,created_at:new Date().toISOString()});return f})
+      setMessages(p=>{const f=p.filter(m=>m.id!==tempId);f.push({id:'ph-u-'+Date.now(),role:'user',content:'ÃÂ°ÃÂÃÂÃÂ· '+file.name,telegram_user:myName,_mine:true,created_at:new Date().toISOString()});if(d.reply)f.push({id:'ph-a-'+Date.now(),role:'assistant',content:d.reply,_mine:false,created_at:new Date().toISOString()});return f})
     }catch(e){setError('Photo error');setMessages(p=>p.filter(m=>m.id!==tempId))}finally{setSending(false)}
   }
 
@@ -161,11 +172,11 @@ export default function Chat({ supabase, partner }) {
     setSending(true);setError(null);const t=await getToken()
     const fd=new FormData();fd.append('file',file)
     var tempId='tmp-f-'+Date.now();myTempIds.current.add(tempId)
-    setMessages(p=>[...p,{id:tempId,role:'user',content:'Ã°ÂÂÂ '+file.name+' Ã¢ÂÂ analysing...',telegram_user:myName,_mine:true,created_at:new Date().toISOString()}])
+    setMessages(p=>[...p,{id:tempId,role:'user',content:'ÃÂ°ÃÂÃÂÃÂ '+file.name+' ÃÂ¢ÃÂÃÂ analysing...',telegram_user:myName,_mine:true,created_at:new Date().toISOString()}])
     try{
       const r=await fetch(API+'/api/catalogue/upload',{method:'POST',headers:{Authorization:'Bearer '+t},body:fd})
       const d=await r.json()
-      setMessages(p=>{const f=p.filter(m=>m.id!==tempId);f.push({id:'f-u-'+Date.now(),role:'user',content:'Ã°ÂÂÂ '+file.name,telegram_user:myName,_mine:true,created_at:new Date().toISOString()});if(d.message)f.push({id:'f-a-'+Date.now(),role:'assistant',content:d.message,_mine:false,created_at:new Date().toISOString()});return f})
+      setMessages(p=>{const f=p.filter(m=>m.id!==tempId);f.push({id:'f-u-'+Date.now(),role:'user',content:'ÃÂ°ÃÂÃÂÃÂ '+file.name,telegram_user:myName,_mine:true,created_at:new Date().toISOString()});if(d.message)f.push({id:'f-a-'+Date.now(),role:'assistant',content:d.message,_mine:false,created_at:new Date().toISOString()});return f})
     }catch(e){setError('File error');setMessages(p=>p.filter(m=>m.id!==tempId))}finally{setSending(false)}
   }
 
@@ -180,11 +191,11 @@ export default function Chat({ supabase, partner }) {
         const blob=new Blob(chunks,{type:'audio/webm'});const t=await getToken()
         const fd=new FormData();fd.append('audio',blob,'voice.webm')
         setSending(true);var tempId='tmp-v-'+Date.now();myTempIds.current.add(tempId)
-        setMessages(p=>[...p,{id:tempId,role:'user',content:'Ã°ÂÂÂ¤ ...',telegram_user:myName,_mine:true,created_at:new Date().toISOString()}])
+        setMessages(p=>[...p,{id:tempId,role:'user',content:'ÃÂ°ÃÂÃÂÃÂ¤ ...',telegram_user:myName,_mine:true,created_at:new Date().toISOString()}])
         try{
           const r=await fetch(API+'/api/chat/voice',{method:'POST',headers:{Authorization:'Bearer '+t},body:fd})
           const d=await r.json()
-          setMessages(p=>{const f=p.filter(m=>m.id!==tempId);if(d.transcript)f.push({id:'v-u-'+Date.now(),role:'user',content:'Ã°ÂÂÂ¤ "'+d.transcript+'"',telegram_user:myName,_mine:true,created_at:new Date().toISOString()});if(d.reply)f.push({id:'v-a-'+Date.now(),role:'assistant',content:d.reply,_mine:false,created_at:new Date().toISOString()});return f})
+          setMessages(p=>{const f=p.filter(m=>m.id!==tempId);if(d.transcript)f.push({id:'v-u-'+Date.now(),role:'user',content:'ÃÂ°ÃÂÃÂÃÂ¤ "'+d.transcript+'"',telegram_user:myName,_mine:true,created_at:new Date().toISOString()});if(d.reply)f.push({id:'v-a-'+Date.now(),role:'assistant',content:d.reply,_mine:false,created_at:new Date().toISOString()});return f})
         }catch(e){setError('Voice error')}finally{setSending(false);stream.getTracks().forEach(t=>t.stop())}
       }
       mediaRef.current=rec;rec.start();setRecording(true)
@@ -204,7 +215,7 @@ export default function Chat({ supabase, partner }) {
         </div>
         <div style={{display:'flex',gap:6}}>
           <button onClick={()=>setTab('chat')} style={{background:tab==='chat'?'rgba(255,255,255,0.15)':'none',border:'1px solid rgba(255,255,255,0.15)',color:'white',borderRadius:8,padding:'4px 10px',fontSize:12,cursor:'pointer'}}>Chat</button>
-          <button onClick={()=>setTab('dashboard')} style={{background:tab==='dashboard'?'rgba(255,255,255,0.15)':'none',border:'1px solid rgba(255,255,255,0.15)',color:'white',borderRadius:8,padding:'4px 10px',fontSize:12,cursor:'pointer'}}>Info</button>
+          <button onClick={()=>setTab('dashboard')} style={{background:tab==='dashboard'?'rgba(255,255,255,0.15)':'none',border:'1px solid rgba(255,255,255,0.15)',color:'white',borderRadius:8,padding:'4px 10px',fontSize:12,cursor:'pointer'}}>Dashboard</button>
         </div>
       </div>
 
@@ -227,23 +238,23 @@ export default function Chat({ supabase, partner }) {
             <div className="dash-stat"><div className="dash-stat-num">{stats.meetings}</div><div className="dash-stat-label">Meetings</div></div>
             <div className="dash-stat"><div className="dash-stat-num">{onlineCount}</div><div className="dash-stat-label">Online</div></div>
           </div>
-          <div className="dash-card"><div className="dash-card-title">Canton Fair 2026 ÃÂ· 139th Session</div>
+          <div className="dash-card"><div className="dash-card-title">Canton Fair 2026 ÃÂÃÂ· 139th Session</div>
             {[{phase:'Phase 1',dates:'Apr 15-19',cats:'Electronics, Hardware, Lighting, Tools',color:'#e8a045'},{phase:'Phase 2',dates:'Apr 23-27',cats:'Home Goods, Ceramics, Furniture, Gifts',color:'#7c6af7'},{phase:'Phase 3',dates:'May 1-5',cats:'Fashion, Textiles, Toys, Personal Care',color:'#4ade80'}].map(ph=>(
               <div key={ph.phase} style={{display:'flex',gap:12,marginBottom:12,alignItems:'flex-start'}}>
                 <div style={{width:4,borderRadius:4,background:ph.color,alignSelf:'stretch',flexShrink:0}}/>
-                <div><div style={{fontSize:13,fontWeight:700,color:ph.color}}>{ph.phase} ÃÂ· {ph.dates}</div><div style={{fontSize:11,color:'rgba(255,255,255,0.5)',marginTop:2}}>{ph.cats}</div></div>
+                <div><div style={{fontSize:13,fontWeight:700,color:ph.color}}>{ph.phase} ÃÂÃÂ· {ph.dates}</div><div style={{fontSize:11,color:'rgba(255,255,255,0.5)',marginTop:2}}>{ph.cats}</div></div>
               </div>))}
           </div>
           <div className="dash-card"><div className="dash-card-title">Team</div>
-            {[{name:'Alexander Oslan',role:'Owner ÃÂ· Strategy',lang:'EN'},{name:'Ina Kanaplianikava',role:'Partner ÃÂ· Quality',lang:'RU'},{name:'Konstantin Khoch',role:'Partner ÃÂ· Negotiations',lang:'RU'},{name:'Konstantin Ganev',role:'Partner ÃÂ· Logistics',lang:'BG'},{name:'Slavi Mikinski',role:'Observer ÃÂ· Remote',lang:'BG'}].map(m=>{
+            {[{name:'Alexander Oslan',role:'Owner ÃÂÃÂ· Strategy',lang:'EN'},{name:'Ina Kanaplianikava',role:'Partner ÃÂÃÂ· Quality',lang:'RU'},{name:'Konstantin Khoch',role:'Partner ÃÂÃÂ· Negotiations',lang:'RU'},{name:'Konstantin Ganev',role:'Partner ÃÂÃÂ· Logistics',lang:'BG'},{name:'Slavi Mikinski',role:'Observer ÃÂÃÂ· Remote',lang:'BG'}].map(m=>{
               var online=presence.find(p=>p.name&&p.name.toLowerCase().includes(m.name.split(' ')[0].toLowerCase())&&p.is_online)
-              return(<div key={m.name} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}><Avatar name={m.name} size={32}/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{m.name}</div><div style={{fontSize:11,color:'rgba(255,255,255,0.45)'}}>{m.role} ÃÂ· {m.lang}</div></div><div style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:online?'rgba(74,222,128,0.15)':'rgba(255,255,255,0.06)',color:online?'#4ade80':'rgba(255,255,255,0.3)',border:'1px solid '+(online?'rgba(74,222,128,0.3)':'transparent')}}>{online?'Ã¢ÂÂ online':'offline'}</div></div>)
+              return(<div key={m.name} style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}><Avatar name={m.name} size={32}/><div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{m.name}</div><div style={{fontSize:11,color:'rgba(255,255,255,0.45)'}}>{m.role} ÃÂÃÂ· {m.lang}</div></div><div style={{fontSize:10,padding:'2px 8px',borderRadius:20,background:online?'rgba(74,222,128,0.15)':'rgba(255,255,255,0.06)',color:online?'#4ade80':'rgba(255,255,255,0.3)',border:'1px solid '+(online?'rgba(74,222,128,0.3)':'transparent')}}>{online?'ÃÂ¢ÃÂÃÂ online':'offline'}</div></div>)
             })}
           </div>
           <div className="dash-card"><div className="dash-card-title">Venue</div>
-            <div className="dash-info-row"><span>Ã°ÂÂÂ</span><span>Pazhou Complex, No.380 Yuejiang Zhong Rd, Guangzhou</span></div>
-            <div className="dash-info-row"><span>Ã°ÂÂÂ¡Ã¯Â¸Â</span><span>April: 22-28C, humid, rain - bring umbrella</span></div>
-            <div className="dash-info-row"><span>Ã°ÂÂÂ</span><span>CFTC: 4000-888-999 / +86-20-28-888-999</span></div>
+            <div className="dash-info-row"><span>ÃÂ°ÃÂÃÂÃÂ</span><span>Pazhou Complex, No.380 Yuejiang Zhong Rd, Guangzhou</span></div>
+            <div className="dash-info-row"><span>ÃÂ°ÃÂÃÂÃÂ¡ÃÂ¯ÃÂ¸ÃÂ</span><span>April: 22-28C, humid, rain - bring umbrella</span></div>
+            <div className="dash-info-row"><span>ÃÂ°ÃÂÃÂÃÂ</span><span>CFTC: 4000-888-999 / +86-20-28-888-999</span></div>
           </div>
           <div className="dash-card"><div className="dash-card-title">Margin Formula</div>
             <div style={{fontSize:12,color:'rgba(255,255,255,0.6)',lineHeight:1.7}}>
@@ -258,7 +269,7 @@ export default function Chat({ supabase, partner }) {
       {tab==='chat'&&(
         <>
           <div className="messages-list">
-            <div style={{textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.2)',padding:'6px 0'}}>"Valeran, ..." for AI &nbsp;ÃÂ·&nbsp; your messages on the right</div>
+            <div style={{textAlign:'center',fontSize:11,color:'rgba(255,255,255,0.2)',padding:'6px 0'}}>"Valeran, ..." for AI &nbsp;ÃÂÃÂ·&nbsp; your messages on the right</div>
 
             {messages.map(msg=>{
               var mine=isMine(msg), val=isValeran(msg), name=senderName(msg)
@@ -274,7 +285,7 @@ export default function Chat({ supabase, partner }) {
                     <div className={'bubble '+(mine?'me-bubble':val?'valeran-bubble':'them-bubble')} style={{maxWidth:'78%',borderRadius:mine?'16px 4px 16px 16px':'4px 16px 16px 16px'}}>
                       {val?<ReactMarkdown>{msg.content||''}</ReactMarkdown>:<span>{msg.content}</span>}
                     </div>
-                    <button onClick={()=>{setReplyTo({id:msg.id,content:msg.content,senderName:senderName(msg)});inputRef.current&&inputRef.current.focus()}} title="Reply" style={{background:'none',border:'none',color:'rgba(255,255,255,0.25)',cursor:'pointer',fontSize:14,padding:'0 2px',flexShrink:0,opacity:0,transition:'opacity 0.15s'}} className="reply-btn">↩</button>
+                    <button onClick={()=>{setReplyTo({id:msg.id,content:msg.content,senderName:senderName(msg)});inputRef.current&&inputRef.current.focus()}} title="Reply" style={{background:'none',border:'none',color:'rgba(255,255,255,0.25)',cursor:'pointer',fontSize:14,padding:'0 2px',flexShrink:0,opacity:0,transition:'opacity 0.15s'}} className="reply-btn">â©</button>
                   </div>
                   <div style={{fontSize:10,color:'rgba(255,255,255,0.3)',marginTop:2,paddingRight:mine?4:0,paddingLeft:mine?0:4}}>{formatTime(msg.created_at)}</div>
                 </div>
@@ -282,22 +293,22 @@ export default function Chat({ supabase, partner }) {
             })}
 
             {sending&&<div style={{display:'flex',flexDirection:'column',alignItems:'flex-start',marginBottom:10}}><div style={{display:'flex',alignItems:'center',gap:5,marginBottom:3,paddingLeft:4}}><SVLogo size={18}/><span style={{fontSize:11,fontWeight:600,color:'#4ade80'}}>Valeran</span></div><div className="bubble valeran-bubble typing"><span/><span/><span/></div></div>}
-            {typing.length>0&&<div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'rgba(255,255,255,0.4)',paddingLeft:4}}><div className="typing-dots"><span/><span/><span/></div><span>{typing.join(', ')} {typing.length===1?'is':'are'} typingÃ¢ÂÂ¦</span></div>}
-            {error&&<div className="chat-error">Ã¢ÂÂ Ã¯Â¸Â {error}</div>}
+            {typing.length>0&&<div style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'rgba(255,255,255,0.4)',paddingLeft:4}}><div className="typing-dots"><span/><span/><span/></div><span>{typing.join(', ')} {typing.length===1?'is':'are'} typingÃÂ¢ÃÂÃÂ¦</span></div>}
+            {error&&<div className="chat-error">ÃÂ¢ÃÂÃÂ ÃÂ¯ÃÂ¸ÃÂ {error}</div>}
             <div ref={bottomRef}/>
           </div>
 
           {/* Reply preview */}
           {replyTo&&(
             <div style={{background:'rgba(255,255,255,0.06)',borderLeft:'3px solid #e8a045',padding:'6px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:12,color:'rgba(255,255,255,0.7)'}}>
-              <div><span style={{color:'#e8a045',fontWeight:600}}>{replyTo.senderName}</span>&nbsp;·&nbsp;{replyTo.content.slice(0,60)}{replyTo.content.length>60?'...':''}</div>
-              <button onClick={()=>setReplyTo(null)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.4)',cursor:'pointer',fontSize:16,lineHeight:1}}>×</button>
+              <div><span style={{color:'#e8a045',fontWeight:600}}>{replyTo.senderName}</span>&nbsp;Â·&nbsp;{replyTo.content.slice(0,60)}{replyTo.content.length>60?'...':''}</div>
+              <button onClick={()=>setReplyTo(null)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.4)',cursor:'pointer',fontSize:16,lineHeight:1}}>Ã</button>
             </div>
           )}
           {/* Emoji picker */}
           {showEmoji&&(
             <div style={{background:'#1a2a4a',border:'1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:'10px 12px',display:'flex',flexWrap:'wrap',gap:6,maxHeight:160,overflowY:'auto'}}>
-              {['😊','😂','👍','❤️','🔥','✅','👌','💪','🎯','📦','💰','🏭','🤝','⚡','🇨🇳','🇪🇺','📊','💡','🚀','😅','🙏','👏','😎','🤔','💯','⭐','📸','🎉','😮','👋'].map(e=>(
+              {['ð','ð','ð','â¤ï¸','ð¥','â','ð','ðª','ð¯','ð¦','ð°','ð­','ð¤','â¡','ð¨ð³','ðªðº','ð','ð¡','ð','ð','ð','ð','ð','ð¤','ð¯','â­','ð¸','ð','ð®','ð'].map(e=>(
                 <button key={e} onClick={()=>insertEmoji(e)} style={{background:'none',border:'none',cursor:'pointer',fontSize:22,padding:'2px',borderRadius:4,lineHeight:1}}>{e}</button>
               ))}
             </div>
@@ -307,9 +318,9 @@ export default function Chat({ supabase, partner }) {
             <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handleFilePicked}/>
             <button className="input-action-btn" onClick={()=>fileRef.current?.click()} title="Attach"><AttachIcon/></button>
             <button className="input-action-btn" onClick={()=>cameraRef.current?.click()} title="Camera"><CameraIcon/></button>
-            <input className="chat-input" value={input} onChange={handleInputChange} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&sendMessage()} placeholder={'"Valeran, Ã¢ÂÂ¦" for AI ÃÂ· or just chat'} disabled={recording}/>
+            <input className="chat-input" value={input} onChange={handleInputChange} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&sendMessage()} placeholder={'"Valeran, ÃÂ¢ÃÂÃÂ¦" for AI ÃÂÃÂ· or just chat'} disabled={recording}/>
             <button className={'input-action-btn mic-btn '+(recording?'recording':'')} onMouseDown={startRecording} onMouseUp={stopRecording} onTouchStart={e=>{e.preventDefault();startRecording()}} onTouchEnd={e=>{e.preventDefault();stopRecording()}} title="Hold to record"><MicIcon/></button>
-            <button className="input-action-btn" onClick={()=>setShowEmoji(p=>!p)} title="Emoji" style={{position:'relative'}}>😊</button>
+            <button className="input-action-btn" onClick={()=>setShowEmoji(p=>!p)} title="Emoji" style={{position:'relative'}}>ð</button>
             {input.trim()&&<button className="send-btn" onClick={sendMessage} disabled={sending}><SendIcon/></button>}
           </div>
         </>
