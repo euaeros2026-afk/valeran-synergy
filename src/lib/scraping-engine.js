@@ -1,334 +1,178 @@
 // ============================================================
 // VALERAN SCRAPING ENGINE
-// Runs overnight during fair breaks
-// Scrapes EU platforms + China platforms per product
-// Auto-calculates margin estimates
+// Uses ScraperAPI to search Amazon DE + Alibaba/1688
+// Saves competitive intelligence to product_research table
 // ============================================================
-
-const Anthropic = require('@anthropic-ai/sdk');
 const { createClient } = require('@supabase/supabase-js');
-const axios = require('axios');
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-
-// ScraperAPI key for anti-bot bypass
-const SCRAPER_KEY = process.env.SCRAPER_API_KEY;
-
-// EU import cost constants (approximate)
-const FREIGHT_PER_KG_EUR = 3.5;
-const VAT_RATE = 0.20; // 20% average EU VAT
-const AMAZON_FEE_RATE = 0.15; // 15% Amazon referral fee
-const ADVERTISING_RATE = 0.08; // 8% ad spend estimate
+const SCRAPER_KEY = process.env.SCRAPERAPI_KEY || process.env.SCRAPER_API_KEY;
 
 // ============================================================
-// SCRAPE AMAZON FOR PRODUCT
+// SCRAPE AMAZON.DE — EU competitor data
 // ============================================================
-async function scrapeAmazonDE(productName, keywords) {
-  const query = encodeURIComponent(`${productName} ${(keywords || []).slice(0, 3).join(' ')}`);
-  const url = `https://www.amazon.de/s?k=${query}`;
-
+async function scrapeAmazonDE(searchQuery, productId) {
+  if (!SCRAPER_KEY) { console.log('[scraper] No ScraperAPI key'); return []; }
   try {
-    const response = await axios.get(`http://api.scraperapi.com`, {
-      params: { api_key: SCRAPER_KEY, url, country_code: 'de', render: 'false' },
-      timeout: 30000
-    });
+    var url = 'https://www.amazon.de/s?k=' + encodeURIComponent(searchQuery) + '&language=en_GB';
+    var scraperUrl = 'https://api.scraperapi.com/?api_key=' + SCRAPER_KEY + '&url=' + encodeURIComponent(url) + '&render=false&country_code=de';
 
-    // Parse with Claude (handles changing HTML structure robustly)
-    const parsePrompt = `Extract product listings from this Amazon.de HTML snippet.
-Return ONLY JSON array of up to 5 results:
-[{
-  "name": "product name",
-  "price_eur": number,
-  "rating": number,
-  "review_count": number,
-  "asin": "string",
-  "url": "string"
-}]
+    var r = await fetch(scraperUrl, { signal: AbortSignal.timeout(30000) });
+    if (!r.ok) { console.error('[scraper] Amazon DE status:', r.status); return []; }
+    var html = await r.text();
 
-HTML (truncated): ${response.data.slice(0, 8000)}`;
+    // Parse results from HTML
+    var results = [];
+    var priceRegex = /data-asin="([^"]+)"[sS]*?class="[^"]*a-price[^"]*"[sS]*?<span class="a-offscreen">([^<]+)</span>/g;
+    var titleRegex = /aria-label="([^"]{10,200})"/g;
+    var ratingRegex = /([d.]+) out of 5/g;
 
-    const parsed = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 800,
-      messages: [{ role: 'user', content: parsePrompt }]
-    });
+    var titles = [], ratings = [], prices = [];
+    var m;
+    while ((m = titleRegex.exec(html)) !== null && titles.length < 10) titles.push(m[1].trim());
+    while ((m = ratingRegex.exec(html)) !== null && ratings.length < 10) ratings.push(parseFloat(m[1]));
+    while ((m = priceRegex.exec(html)) !== null && prices.length < 10) prices.push(m[2]);
 
-    const text = parsed.content[0].text.replace(/```json|```/g, '').trim();
-    return JSON.parse(text);
-  } catch (e) {
-    console.error('Amazon DE scrape failed:', e.message);
+    for (var i = 0; i < Math.min(titles.length, 5); i++) {
+      var priceEur = prices[i] ? parseFloat(prices[i].replace(/[€,]/g, '').replace(',', '.')) : null;
+      var result = {
+        product_id: productId || null,
+        platform: 'amazon_de',
+        search_query: searchQuery,
+        product_name: titles[i] ? titles[i].slice(0, 200) : null,
+        price_eur: priceEur,
+        rating: ratings[i] || null,
+        url: url,
+        raw_data: { position: i + 1 }
+      };
+      results.push(result);
+      await supabase.from('product_research').insert(result);
+    }
+
+    console.log('[scraper] Amazon DE: found', results.length, 'results for', searchQuery);
+    return results;
+  } catch(e) {
+    console.error('[scraper] Amazon DE error:', e.message);
     return [];
   }
 }
 
 // ============================================================
-// SCRAPE EMAG
+// SCRAPE ALIBABA — China supply data
 // ============================================================
-async function scrapeEMAG(productName) {
-  const query = encodeURIComponent(productName);
-  const url = `https://www.emag.ro/search/${query}`;
-
+async function scrapeAlibaba(searchQuery, productId) {
+  if (!SCRAPER_KEY) return [];
   try {
-    const response = await axios.get(`http://api.scraperapi.com`, {
-      params: { api_key: SCRAPER_KEY, url, country_code: 'ro', render: 'false' },
-      timeout: 30000
-    });
+    var url = 'https://www.alibaba.com/trade/search?SearchText=' + encodeURIComponent(searchQuery) + '&IndexArea=product_en';
+    var scraperUrl = 'https://api.scraperapi.com/?api_key=' + SCRAPER_KEY + '&url=' + encodeURIComponent(url) + '&render=false';
 
-    const parsePrompt = `Extract product listings from this eMAG.ro HTML.
-Return ONLY JSON array up to 5 items:
-[{"name": "...", "price_eur": number, "rating": number, "review_count": number}]
-HTML: ${response.data.slice(0, 6000)}`;
+    var r = await fetch(scraperUrl, { signal: AbortSignal.timeout(30000) });
+    if (!r.ok) return [];
+    var html = await r.text();
 
-    const parsed = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 600,
-      messages: [{ role: 'user', content: parsePrompt }]
-    });
+    var results = [];
+    // Parse price ranges and product names from Alibaba HTML
+    var priceRegex = /\$([\d.]+)\s*-\s*\$([\d.]+)/g;
+    var titleRegex = /class="[^"]*product-title[^"]*"[^>]*>([^<]{10,200})<\/a>/g;
+    var moqRegex = /([\d,]+)\s*(?:piece|pcs|unit|set)s?\s*(?:\(min[\s.]*order\)|min\.?)/gi;
 
-    return JSON.parse(parsed.content[0].text.replace(/```json|```/g, '').trim());
-  } catch (e) {
-    console.error('eMAG scrape failed:', e.message);
+    var titles = [], prices = [], moqs = [];
+    var m;
+    while ((m = titleRegex.exec(html)) !== null && titles.length < 8) titles.push(m[1].trim());
+    while ((m = priceRegex.exec(html)) !== null && prices.length < 8) prices.push({ min: parseFloat(m[1]), max: parseFloat(m[2]) });
+    while ((m = moqRegex.exec(html)) !== null && moqs.length < 8) moqs.push(parseInt(m[1].replace(/,/g,'')));
+
+    for (var i = 0; i < Math.min(titles.length, 5); i++) {
+      var result = {
+        product_id: productId || null,
+        platform: 'alibaba',
+        search_query: searchQuery,
+        product_name: titles[i] ? titles[i].slice(0, 200) : null,
+        price_eur: prices[i] ? prices[i].min * 0.92 : null, // approx USD to EUR
+        url: url,
+        raw_data: { price_range_usd: prices[i], moq: moqs[i] || null, position: i + 1 }
+      };
+      results.push(result);
+      await supabase.from('product_research').insert(result);
+    }
+
+    console.log('[scraper] Alibaba: found', results.length, 'results for', searchQuery);
+    return results;
+  } catch(e) {
+    console.error('[scraper] Alibaba error:', e.message);
     return [];
   }
 }
 
 // ============================================================
-// SCRAPE ALIBABA FOR CHINA PRICING
+// SCRAPE AMAZON PRODUCT PAGE for reviews
 // ============================================================
-async function scrapeAlibaba(productName) {
-  const query = encodeURIComponent(productName);
-  const url = `https://www.alibaba.com/trade/search?SearchText=${query}`;
-
+async function scrapeProductReviews(asin, productId) {
+  if (!SCRAPER_KEY || !asin) return null;
   try {
-    const response = await axios.get(`http://api.scraperapi.com`, {
-      params: { api_key: SCRAPER_KEY, url, country_code: 'cn', render: 'false' },
-      timeout: 30000
-    });
+    var url = 'https://www.amazon.de/dp/' + asin + '?language=en_GB';
+    var scraperUrl = 'https://api.scraperapi.com/?api_key=' + SCRAPER_KEY + '&url=' + encodeURIComponent(url);
+    var r = await fetch(scraperUrl, { signal: AbortSignal.timeout(30000) });
+    if (!r.ok) return null;
+    var html = await r.text();
 
-    const parsePrompt = `Extract product listings from this Alibaba HTML.
-Return ONLY JSON array up to 5 items:
-[{
-  "supplier_name": "...",
-  "price_usd_min": number,
-  "price_usd_max": number,
-  "moq": number,
-  "gold_supplier": boolean,
-  "trade_assurance": boolean
-}]
-HTML: ${response.data.slice(0, 6000)}`;
+    // Extract review snippets
+    var reviewRegex = /class="[^"]*review-text[^"]*"[sS]*?<span[^>]*>([^<]{20,500})<\/span>/g;
+    var reviews = [];
+    var m;
+    while ((m = reviewRegex.exec(html)) !== null && reviews.length < 20) {
+      reviews.push(m[1].trim().replace(/\s+/g, ' '));
+    }
 
-    const parsed = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 600,
-      messages: [{ role: 'user', content: parsePrompt }]
-    });
+    // Use AI to summarise complaints and praises
+    if (reviews.length > 0) {
+      var { callAI } = require('./valeran-core');
+      var summary = await callAI([{ role: 'user', content: 'From these Amazon reviews, extract: 1) top 3 complaints, 2) top 3 praises, 3) one sentence summary.\n\nReviews:\n' + reviews.slice(0,10).join('\n') }], 'Extract insights from reviews. Be concise.', 300, 15000);
 
-    return JSON.parse(parsed.content[0].text.replace(/```json|```/g, '').trim());
-  } catch (e) {
-    console.error('Alibaba scrape failed:', e.message);
-    return [];
+      await supabase.from('product_research').update({
+        reviews_summary: summary,
+        review_count: reviews.length,
+        raw_data: { asin, review_snippets: reviews.slice(0,5) }
+      }).eq('product_id', productId).eq('platform', 'amazon_de');
+
+      return { summary, reviewCount: reviews.length };
+    }
+    return null;
+  } catch(e) {
+    console.error('[scraper] reviews error:', e.message);
+    return null;
   }
 }
 
 // ============================================================
-// EXTRACT REVIEW INSIGHTS
+// FULL PRODUCT RESEARCH — runs both EU + CN searches
 // ============================================================
-async function extractReviewInsights(productName, amazonResults) {
-  if (!amazonResults?.length) return { top_complaints: [], top_praise: [], questions_to_ask: [] };
-
-  // Scrape top reviews for the best-rated product
-  const topProduct = amazonResults.sort((a, b) => (b.review_count || 0) - (a.review_count || 0))[0];
-  if (!topProduct?.asin) return { top_complaints: [], top_praise: [], questions_to_ask: [] };
-
-  const reviewUrl = `https://www.amazon.de/product-reviews/${topProduct.asin}?sortBy=recent`;
-
-  try {
-    const response = await axios.get(`http://api.scraperapi.com`, {
-      params: { api_key: SCRAPER_KEY, url: reviewUrl, country_code: 'de' },
-      timeout: 30000
-    });
-
-    const insightPrompt = `Analyse these Amazon reviews for "${productName}".
-Extract insights useful for a product sourcing team deciding whether to source and sell this product.
-Return ONLY JSON:
-{
-  "top_complaints": ["complaint 1", "complaint 2", "complaint 3"],
-  "top_praise": ["praise 1", "praise 2", "praise 3"],
-  "differentiation_opportunities": ["opportunity 1", "opportunity 2"],
-  "questions_to_ask_supplier": ["question 1", "question 2", "question 3"],
-  "avg_quality_perception": "low|medium|high"
-}
-
-Reviews HTML: ${response.data.slice(0, 8000)}`;
-
-    const parsed = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 800,
-      messages: [{ role: 'user', content: insightPrompt }]
-    });
-
-    return JSON.parse(parsed.content[0].text.replace(/```json|```/g, '').trim());
-  } catch (e) {
-    return { top_complaints: [], top_praise: [], questions_to_ask: [] };
-  }
-}
-
-// ============================================================
-// CALCULATE GROSS MARGIN ESTIMATE
-// ============================================================
-function calculateMargin({ exworks_price_usd, eu_avg_price_eur, weight_grams, hs_customs_duty_rate }) {
-  if (!exworks_price_usd || !eu_avg_price_eur) return null;
-
-  const cogs = exworks_price_usd * 1.05; // +5% for packaging/QC
-  const freight = ((weight_grams || 500) / 1000) * FREIGHT_PER_KG_EUR;
-  const dutyRate = (hs_customs_duty_rate || 3.7) / 100;
-  const landedCost = cogs + freight + (cogs * dutyRate);
-  const vatCost = eu_avg_price_eur * VAT_RATE;
-  const amazonFee = eu_avg_price_eur * AMAZON_FEE_RATE;
-  const adSpend = eu_avg_price_eur * ADVERTISING_RATE;
-  const totalCost = landedCost + vatCost + amazonFee + adSpend;
-  const grossMargin = ((eu_avg_price_eur - totalCost) / eu_avg_price_eur) * 100;
-
-  return Math.round(grossMargin * 10) / 10;
-}
-
-// ============================================================
-// CALCULATE 5-DIMENSION SCORE
-// ============================================================
-async function calculateScore(product, euResults, chinaResults, reviewInsights) {
-  const scorePrompt = `Score this product opportunity from 1-5 on each dimension.
-Return ONLY JSON: {
-  "category_attractiveness": number,
-  "product_demand": number,
-  "competition_difficulty": number,
-  "sourcing_feasibility": number,
-  "margin_quality": number,
-  "reasoning": "one sentence"
-}
-
-Product: ${product.product_name}
-EU avg price: €${product.eu_avg_price_eur}
-Gross margin estimate: ${product.gross_margin_estimate}%
-EU competitors found: ${euResults?.length || 0} (top reviews: ${euResults?.[0]?.review_count || 0})
-China sources found: ${chinaResults?.length || 0}
-Top complaint: ${reviewInsights?.top_complaints?.[0] || 'none'}
-Category: ${product.category_auto}
-
-Scoring guide:
-- Category attractiveness: 5 = large growing market, 1 = tiny or declining
-- Product demand: 5 = high search + sales evidence, 1 = no real demand signal
-- Competition difficulty: 5 = easy to enter (fragmented), 1 = impossible (dominated)
-- Sourcing feasibility: 5 = many suppliers, low MOQ, 1 = few sources, high MOQ
-- Margin quality: 5 = >45% gross, 1 = <15% gross`;
-
-  const parsed = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 400,
-    messages: [{ role: 'user', content: scorePrompt }]
-  });
-
-  const scores = JSON.parse(parsed.content[0].text.replace(/```json|```/g, '').trim());
-  const total = (scores.category_attractiveness + scores.product_demand +
-    scores.competition_difficulty + scores.sourcing_feasibility + scores.margin_quality) / 5;
-
-  return { ...scores, total: Math.round(total * 10) / 10 };
-}
-
-// ============================================================
-// MAIN: RUN FULL INTELLIGENCE ON ONE PRODUCT
-// ============================================================
-async function enrichProduct(productId) {
-  const { data: product } = await supabase
-    .from('products')
-    .select('*')
-    .eq('id', productId)
-    .single();
-
-  if (!product) return;
-
-  console.log(`Enriching: ${product.product_name}`);
-
-  // Parallel scraping
-  const [amazonDE, emag, alibaba] = await Promise.all([
-    scrapeAmazonDE(product.product_name, product.search_keywords),
-    scrapeEMAG(product.product_name),
-    scrapeAlibaba(product.product_name)
+async function researchProduct(productName, productId) {
+  console.log('[scraper] Researching:', productName);
+  var results = await Promise.allSettled([
+    scrapeAmazonDE(productName, productId),
+    scrapeAlibaba(productName, productId)
   ]);
-
-  // Review insights
-  const reviewInsights = await extractReviewInsights(product.product_name, amazonDE);
-
-  // Calculate EU avg price
-  const allEuPrices = [...amazonDE, ...emag].map(p => p.price_eur).filter(Boolean);
-  const euAvgPrice = allEuPrices.length
-    ? Math.round((allEuPrices.reduce((a, b) => a + b, 0) / allEuPrices.length) * 100) / 100
-    : null;
-
-  // China price floor
-  const chinaFloorUsd = alibaba.length
-    ? Math.min(...alibaba.map(p => p.price_usd_min).filter(Boolean))
-    : null;
-
-  // Margin calculation
-  const grossMargin = calculateMargin({
-    exworks_price_usd: product.exworks_price_usd_min || (chinaFloorUsd),
-    eu_avg_price_eur: euAvgPrice,
-    weight_grams: product.weight_grams,
-    hs_customs_duty_rate: product.hs_customs_duty_rate
-  });
-
-  // Build update
-  const update = {
-    eu_top_competitors: [...amazonDE.slice(0, 3), ...emag.slice(0, 2)],
-    eu_avg_price_eur: euAvgPrice,
-    eu_price_range_min: allEuPrices.length ? Math.min(...allEuPrices) : null,
-    eu_price_range_max: allEuPrices.length ? Math.max(...allEuPrices) : null,
-    eu_review_insights: reviewInsights,
-    china_source_matches: alibaba,
-    china_price_floor_cny: chinaFloorUsd ? chinaFloorUsd * 7.2 : null,
-    gross_margin_estimate: grossMargin,
-    image_search_done: true,
-    image_search_at: new Date().toISOString()
-  };
-
-  // Calculate scores
-  const scores = await calculateScore({ ...product, ...update }, amazonDE, alibaba, reviewInsights);
-  update.score_category_attractiveness = scores.category_attractiveness;
-  update.score_product_demand = scores.product_demand;
-  update.score_competition_difficulty = scores.competition_difficulty;
-  update.score_sourcing_feasibility = scores.sourcing_feasibility;
-  update.score_margin_quality = scores.margin_quality;
-  update.total_score = scores.total;
-
-  // Save to database
-  await supabase.from('products').update(update).eq('id', productId);
-  console.log(`✓ ${product.product_name} — score ${scores.total}/5, margin ~${grossMargin}%`);
-
-  return { ...product, ...update, scores };
+  var euResults = results[0].value || [];
+  var cnResults = results[1].value || [];
+  console.log('[scraper] Research complete. EU:', euResults.length, 'CN:', cnResults.length);
+  return { eu: euResults, cn: cnResults };
 }
 
 // ============================================================
-// BATCH: ENRICH ALL UN-SCRAPED PRODUCTS FOR A SESSION
+// ENRICH ALL PRODUCTS (overnight batch)
 // ============================================================
 async function enrichAllProducts(sessionId) {
-  const { data: products } = await supabase
-    .from('products')
-    .select('id, product_name')
-    .eq('fair_session_id', sessionId)
-    .eq('image_search_done', false)
-    .order('created_at');
+  console.log('[scraper] Starting overnight enrichment for session:', sessionId);
+  var { data: products } = await supabase.from('products').select('id, name').eq('session_id', sessionId).limit(20);
+  if (!products || products.length === 0) { console.log('[scraper] No products to enrich'); return; }
 
-  console.log(`Enriching ${products?.length || 0} products overnight...`);
-
-  for (const product of (products || [])) {
-    await enrichProduct(product.id);
-    await sleep(2000); // Rate limiting
+  for (var p of products) {
+    if (p.name) {
+      await researchProduct(p.name, p.id);
+      await new Promise(function(resolve){ setTimeout(resolve, 3000); }); // rate limit
+    }
   }
-
-  console.log('Overnight enrichment complete.');
+  console.log('[scraper] Enrichment complete for', products.length, 'products');
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-module.exports = { enrichProduct, enrichAllProducts };
+module.exports = { enrichAllProducts, researchProduct, scrapeAmazonDE, scrapeAlibaba };
