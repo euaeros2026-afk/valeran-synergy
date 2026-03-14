@@ -332,34 +332,34 @@ app.post('/api/telegram/webhook', async function(req, res) {
         var iCtrl = new AbortController(); setTimeout(function(){ iCtrl.abort(); }, 25000);
         var iR = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-          body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 600, messages: [{ role: 'user', content: [
+          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 600, messages: [{ role: 'user', content: [
             { type: 'image', source: { type: 'base64', media_type: imgMime, data: b64 } },
-            { type: 'text', text: 'Describe what you see. If it shows products, suppliers, prices, booth numbers: extract all details.' + (cap ? ' Note: ' + cap : '') }
+            { type: 'text', text: 'You are analysing a supplier catalogue or product image for a Canton Fair sourcing team. Extract ALL visible information: product names, model numbers, prices (USD/CNY/EUR), MOQ, materials, dimensions, certifications, supplier name/booth. Format your response for Telegram using *Bold* for section titles and • for bullets. No markdown headers (##), no language prefix labels.' + (cap ? ' Note: ' + cap : '') }
           ]}] }), signal: iCtrl.signal });
         var iD = await iR.json(); summary = iD.content && iD.content[0] && iD.content[0].text || '';
       } else if (isText) {
         method = 'text';
         var txtRaw = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
-        summary = await core.callAI([{ role: 'user', content: 'Analyse this file, extract supplier names, products, prices, contacts: ' + txtRaw.slice(0,5000) }], TG_SYSTEM, 600, 18000);
+        summary = await core.callAI([{ role: 'user', content: 'You are a Canton Fair sourcing analyst. Extract ALL business data from this file: supplier names, product names, model numbers, prices (note currency), MOQ, payment terms, contacts, certifications. Format the response for Telegram: *Section Title* for headers, • for bullet points, no ## markdown, no language prefix. Group products by category if multiple exist. ' + txtRaw.slice(0,5000) }], TG_SYSTEM, 600, 18000);
       } else if (isOffice) {
         method = 'office';
         var rawTxt = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ');
         var extracted = (rawTxt.match(/[a-zA-Z0-9\u0400-\u04FF]{3,}/g) || []).join(' ');
         if (extracted.length > 200) {
           method = 'office (text)';
-          summary = await core.callAI([{ role: 'user', content: 'Text from a ' + fext + ' file. Extract business info: ' + extracted.slice(0,4000) }], TG_SYSTEM, 600, 18000);
+          summary = await core.callAI([{ role: 'user', content: 'You are a Canton Fair sourcing analyst. Extract all business data from this ' + fext + ' file. Extract business info: ' + extracted.slice(0,4000) }], TG_SYSTEM, 600, 18000);
         } else {
           summary = 'Saved "' + fname + '"' + (cap ? '\nNote: ' + cap : '') + '\n\n' + fext.toUpperCase() + ' file - cannot read binary content.\nTo share: export as .csv or .txt and send that, or paste the key data as a message.';
         }
       } else if (isPDF) {
         var pTxt = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g,' ');
         var wc = (pTxt.match(/[a-zA-Z\u0400-\u04FF]{3,}/g)||[]).length;
-        if (wc > 80 && wc/Math.max(1,buffer.length/100) > 1.5) { method='PDF text'; summary=await core.callAI([{role:'user',content:'Analyse document key facts dates rules contacts: '+pTxt.slice(0,5000)}],TG_SYSTEM,700,22000); }
+        if (wc > 80 && wc/Math.max(1,buffer.length/100) > 1.5) { method='PDF text'; summary=await core.callAI([{role:'user',content:'You are a Canton Fair sourcing analyst. Extract all business data: products, prices, MOQ, supplier info, certifications, payment terms, contacts. Format for Telegram: *Section Title* for headers, • for bullets, no ## markdown, no language prefix. '+pTxt.slice(0,5000)}],TG_SYSTEM,700,22000); }
         if (!summary) {
           method='PDF vision';
           var pCtrl=new AbortController(); setTimeout(function(){pCtrl.abort();},40000);
           try {
-            var pR=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},{type:'text',text:'Summarise for Canton Fair team. Bold headers, bullet points. Key facts and actions.'+(cap?' Note: '+cap:'')}]}]}),signal:pCtrl.signal});
+            var pR=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},{type:'text',text:'You are analysing a supplier document for a Canton Fair sourcing team. Extract: supplier name, all products with prices/MOQ, certifications, payment terms, contacts, booth/hall info if visible. Format for Telegram: use *Bold Text* for section titles (NOT ## headers), • for bullet points. Group by: *SUPPLIER*, *PRODUCTS*, *PRICING*, *CONTACTS*. No language prefix labels.'+(cap?' Note: '+cap:'')}]}]}),signal:pCtrl.signal});
             var pD=await pR.json(); var ps=pD.content&&pD.content[0]&&pD.content[0].text||''; if(ps.length>50)summary=ps;
           } catch(pe){}
         }
@@ -373,8 +373,20 @@ app.post('/api/telegram/webhook', async function(req, res) {
         }
       }
       if (!summary) { method='fallback'; summary='Saved "'+fname+'"'+(cap?'\nNote: '+cap:'')+'\n\nCould not read file. Try PDF, image, CSV, or TXT, or paste the key info directly.'; }
-      var reply = summary.replace(/^#{1,3}\s*/gm,'').replace(/\*\*([^*]+)\*\*/g,'*$1*').replace(/^\s*[*\u2022]/gm,'-').slice(0,3900);
-      if (method !== 'fallback') reply = reply + '\n_(' + method + ')_';
+      var reply = (function formatTG(s) {
+      s = s.replace(/^\*\*(?:EN|BG|RU|English|Bulgarian|Russian)\*\*[\s\n]*/gim, '');
+      s = s.replace(/^(?:EN|BG|RU|English|Bulgarian|Russian):\s*/gim, '');
+      s = s.replace(/^#{1,6}\s+(.+)/gm, function(_, t) { return '\n*' + t.trim() + '*'; });
+      s = s.replace(/\*\*([^*\n]+)\*\*/g, '*$1*');
+      s = s.replace(/^[\s]*[-*\u2022\u2013]\s+/gm, '\u2022 ');
+      s = s.replace(/\n{3,}/g, '\n\n');
+      return s.trim();
+    })(summary);
+    if (method !== 'fallback') {
+      var safeFile = fname.replace(/[_*\[\]()~`>#+=|{}.!]/g, '\\$&');
+      reply = '\uD83D\uDCCB *' + safeFile + '*\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n' + reply + '\n\n_(' + method + ')_';
+    }
+    reply = reply.slice(0, 3900);
       await core.saveCorrection('File "'+fname+'" from '+from+(cap?'. Note: '+cap:'')+'. Summary: '+summary.slice(0,500), null, 'file_'+fname.replace(/[^a-z0-9]/gi,'_').slice(0,30));
       await supabase.from('catalogue_uploads').insert({filename:fname,session_id:sid,analysis_status:method!=='fallback'?'done':'failed',products_extracted:0,summary:summary.slice(0,2000),raw_analysis:{caption:cap,from:from,method:method,mime:mime,size:doc.file_size}});
       await tgSend(chatId, reply, msg.message_id);
