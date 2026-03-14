@@ -283,11 +283,26 @@ var TG_SYSTEM = 'You are Valeran, AI assistant for Synergy Ventures at Canton Fa
 
 function cleanTG(s) {
   if (!s) return s;
-  s = s.replace(/^\*\*(?:EN|BG|RU|English|Bulgarian|Russian)\*\*[\s\n]*/gim, '');
-  s = s.replace(/^(?:EN|BG|RU|English|Bulgarian|Russian):\s*/gim, '');
+  // Strip language label lines: **EN**, **EN** (for X), EN:, English: etc
+  s = s.replace(/^\*\*(?:EN|BG|RU|English|Bulgarian|Russian)\*\*[^\n]*\n*/gim, '');
+  s = s.replace(/^(?:EN|BG|RU|English|Bulgarian|Russian):[^\n]*\n*/gim, '');
+  // Strip markdown HR separators (---)
+  s = s.replace(/^---+\s*$/gm, '');
+  // Convert markdown tables to plain list
+  s = s.replace(/^\|.+\|\s*$/gm, function(row) {
+    // Skip separator rows (|---|---|)
+    if (/^\|[\s|:-]+\|$/.test(row)) return '';
+    // Extract cells
+    var cells = row.split('|').map(function(c){return c.trim();}).filter(function(c){return c.length > 0;});
+    return cells.join(' • ');
+  });
+  // Convert ## headers to *BOLD*
   s = s.replace(/^#{1,6}\s+(.+)/gm, function(_, t) { return '\n*' + t.trim() + '*'; });
+  // Convert **bold** to *bold* (Telegram format)
   s = s.replace(/\*\*([^*\n]+)\*\*/g, '*$1*');
+  // Normalise bullet points
   s = s.replace(/^[\s]*[-*\u2022\u2013]\s+/gm, '\u2022 ');
+  // Collapse excessive blank lines
   s = s.replace(/\n{3,}/g, '\n\n');
   return s.trim();
 }
