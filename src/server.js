@@ -44,7 +44,7 @@ app.post('/api/chat/message', requireAuth, async function(req, res) {
   try {
     var result = await core.processMessage({ text: req.body.text, partnerId: req.partner && req.partner.id, sessionId: sid });
     res.json({ reply: result.reply || 'Noted.', session_id: sid, responded: result.responded });
-  } catch(e) { res.json({ reply: 'Error — try again.', session_id: sid }); }
+  } catch(e) { res.json({ reply: 'Error â try again.', session_id: sid }); }
 });
 
 app.get('/api/chat/messages', requireAuth, async function(req, res) {
@@ -213,7 +213,7 @@ var TG_SYSTEM = 'You are Valeran, AI assistant for Synergy Ventures at Canton Fa
   'Team: Alexander (EN), Ina (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi (BG). ' +
   'LANGUAGE: reply in exact same language as the message. BG=BG, RU=RU, EN=EN. Never mix. ' +
   'STYLE: short and direct. 1-3 sentences for simple questions. No fluff. ' +
-  'Use [Context:...] when present — that is what someone replied to.';
+  'Use [Context:...] when present â that is what someone replied to.';
 
 async function tgSend(chatId, text, replyToId) {
   var body = { chat_id: chatId, text: text.slice(0, 4000) };
@@ -226,8 +226,8 @@ async function tgSend(chatId, text, replyToId) {
 // ---- TELEGRAM WEBHOOK ----
 // CRITICAL: ALL work happens BEFORE res.sendStatus(200).
 // Vercel kills async code after res.send().
-// For documents: takes 10-20s — Telegram retries after 5s (harmless).
-// For text: takes 3-5s — within Telegram's window.
+// For documents: takes 10-20s â Telegram retries after 5s (harmless).
+// For text: takes 3-5s â within Telegram's window.
 
 app.post('/api/telegram/webhook', async function(req, res) {
   var body = req.body || {};
@@ -265,11 +265,11 @@ app.post('/api/telegram/webhook', async function(req, res) {
       var summary = '';
 
       if (readableChars > 300) {
-        // Text-based file — read directly
+        // Text-based file â read directly
         var prompt = 'Analyse this document briefly. What is it about (1 sentence)? List key facts, dates, locations, rules (bullets). Any actions needed? Document: ' + fileText.slice(0, 5000);
         summary = await core.callAI([{ role: 'user', content: prompt }], TG_SYSTEM, 600, 25000);
       } else if (isPDF) {
-        // Binary PDF — send to Claude as document
+        // Binary PDF â send to Claude as document
         var b64 = buffer.toString('base64');
         var ctrl2 = new AbortController();
         setTimeout(function() { ctrl2.abort(); }, 25000);
@@ -277,13 +277,13 @@ app.post('/api/telegram/webhook', async function(req, res) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
           body: JSON.stringify({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 600,
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 800,
             messages: [{
               role: 'user',
               content: [
                 { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
-                { type: 'text', text: 'Summarise this document briefly: what is it (1 sentence), key facts and dates (bullets), any action items.' + (cap ? ' Note from sender: ' + cap : '') }
+                { type: 'text', text: 'This is a document sent by our trade fair team. Read it fully and provide: 1) What it is (1 sentence). 2) All key facts, dates, locations, rules, requirements (bullet list). 3) Any action items for the team. Be thorough — this will be saved as reference.' + (cap ? ' Sender note: ' + cap : '') }
               ]
             }]
           }),
@@ -294,7 +294,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
       }
 
       if (!summary) {
-        summary = 'Saved "' + fname + '".' + (cap ? ' Your note: ' + cap + '.' : '') + ' Could not read the content — it may be a scanned image PDF. Try sending as .txt or paste the key info directly.';
+        summary = 'Saved "' + fname + '".' + (cap ? ' Your note: ' + cap + '.' : '') + ' Could not read the content â it may be a scanned image PDF. Try sending as .txt or paste the key info directly.';
       }
 
       // Step 4: save to memory so Valeran can reference it
@@ -337,7 +337,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
   if (msg.reply_to_message && msg.reply_to_message.text) {
     var rFrom = (msg.reply_to_message.from && msg.reply_to_message.from.first_name) || 'someone';
     var isBot = !!(msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
-    var ctx = isBot ? '[Context — you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context — ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
+    var ctx = isBot ? '[Context â you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context â ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
     query = ctx + '\n' + from + ' asks: ' + query;
   }
 
