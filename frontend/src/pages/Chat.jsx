@@ -100,6 +100,11 @@ export default function Chat({ supabase, partner }) {
     }
   }, [])
 
+  // Re-load messages when partner name becomes available (fixes _mine tagging)
+  useEffect(function() {
+    if (myName) loadMessages()
+  }, [myName])
+
   useEffect(function() {
     bottomRef.current && bottomRef.current.scrollIntoView({ behavior: 'smooth' })
   }, [messages, tab])
