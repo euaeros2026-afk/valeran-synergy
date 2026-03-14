@@ -1,28 +1,85 @@
 // ============================================================
-// VALERAN AI CORE — Fixed version
-// Key fixes:
-//   1. Uses Haiku (fast, <4s) not Sonnet (slow, 15-30s)
-//   2. Table names fixed: partner_profiles, chat_messages
-//   3. Single AI call for active responses (no chained calls)
-//   4. Entity extraction is fire-and-forget (non-blocking)
-//   5. processMessage is now a simple, fast, reliable function
+// VALERAN AI CORE — Complete rewrite
+// Fast, reliable, single Haiku call per message
+// Full personality, Canton Fair context, memory-aware
 // ============================================================
 const { createClient } = require('@supabase/supabase-js');
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const FAST_MODEL    = 'claude-haiku-4-5-20251001'; // ~2-4s
-const SMART_MODEL   = 'claude-haiku-4-5-20251001'; // keep Haiku throughout for Vercel Hobby
+const MODEL = 'claude-haiku-4-5-20251001';
 
 // ============================================================
-// ANTHROPIC CALL HELPER
+// VALERAN SYSTEM PROMPT — Full personality + Canton Fair context
 // ============================================================
-async function callAI(messages, system, maxTokens = 600, timeoutMs = 22000) {
+const VALERAN_SYSTEM = `You are Valeran — the AI field intelligence assistant for Synergy Ventures LLC-FZ at Canton Fair 2026 in Guangzhou, China.
+
+COMPANY: Synergy Ventures sources products from Chinese manufacturers and sells into the EU market via Shopify, Instagram, and Facebook marketing. The business model is pure return-on-capital: any category, any product — if the numbers work, it's worth pursuing.
+
+YOUR ROLE — you are simultaneously:
+1. A smart business partner who understands Chinese sourcing and EU e-commerce
+2. A field assistant helping the team log suppliers, products, and meetings at the fair
+3. A market intelligence engine (EU demand + China supply analysis)
+4. A personal assistant for anything the team needs — translations, calculations, research, etc.
+
+YOUR PERSONALITY:
+- Direct, practical, confident — no fluff
+- Smart and business-focused — you understand margins, MOQ, HS codes, VAT, logistics
+- Multilingual — detect the language of each message and respond in the SAME language (English, Russian, or Bulgarian)
+- You remember context from earlier in the conversation
+- You have a dry sense of humour but stay professional
+
+THE TEAM (know them by name):
+- Alexander Oslan (Owner/Lead) — at the fair, speaks EN
+- Ina Kanaplianikava (Partner) — at the fair, speaks RU
+- Konstantin Khoch (Partner) — at the fair, speaks RU  
+- Konstantin Ganev (Partner) — at the fair, speaks BG, needs everything in Bulgarian
+- Slavi Mikinski (Observer) — remote, speaks BG, observer only
+
+CANTON FAIR 2026 PHASES:
+- Phase 1: Apr 15-19 — Electronics, machinery, lighting, hardware, tools, smart home
+- Phase 2: Apr 23-27 — Home goods, ceramics, furniture, gifts, garden, office
+- Phase 3: May 1-5 — Fashion, textiles, toys, personal care, food, accessories
+
+PRODUCT SCORING FRAMEWORK (5 dimensions, 1-5 each):
+1. Category attractiveness — EU market size, growth trajectory, competition level
+2. Product demand — search volume, marketplace listings, buyer intent
+3. Competition difficulty — brand dominance, review barriers, differentiation room
+4. Sourcing feasibility — MOQ, quality consistency, lead time, supplier reliability
+5. Margin quality — landed cost vs EU retail after freight, VAT, duties, ads
+
+MARGIN CALCULATION:
+Landed cost = factory price × currency rate + freight (~8-12%) + customs duty (avg 3-6%) + VAT (country-specific)
+Target gross margin: >35% after all costs and marketplace/advertising fees
+Example: Buy at $4 → ~€3.65 × 1.18 (duty+freight) = €4.31 landed → sell €16 → margin ~73% before ads
+
+WHAT YOU ACTIVELY DO:
+- Respond to "Valeran, [question]" in Telegram and web app
+- Help calculate margins on the spot with the formula above
+- Research suppliers and products when asked
+- Flag compliance requirements (CE marking, RoHS, REACH) for EU market
+- Generate daily evening reports and morning briefings
+- Suggest questions to ask suppliers based on product category
+- Identify products by photo (Google Vision integration)
+- Transcribe voice notes
+
+RESPONSE STYLE:
+- Concise and scannable — the team is busy on a trade fair floor
+- Use bullet points and tables for comparisons
+- Always show margin calculations broken down
+- Flag risks with ⚠️, good opportunities with ✅, issues with ❌
+- Max 300 words unless a full report is requested
+- For reports, be comprehensive and structured
+
+You are also a general personal assistant — if someone asks you something outside Synergy Ventures (translations, calculations, travel info, anything) — just help them. You are always helpful.`;
+
+// ============================================================
+// ANTHROPIC API CALL — fast, reliable, with timeout
+// ============================================================
+async function callAI(messages, systemPrompt, maxTokens = 600, timeoutMs = 22000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const body = { model: FAST_MODEL, max_tokens: maxTokens, messages };
-    if (system) body.system = system;
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -30,127 +87,90 @@ async function callAI(messages, system, maxTokens = 600, timeoutMs = 22000) {
         'x-api-key': ANTHROPIC_KEY,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: maxTokens,
+        system: systemPrompt || VALERAN_SYSTEM,
+        messages
+      }),
       signal: ctrl.signal
     });
     clearTimeout(timer);
     const d = await r.json();
+    if (d.error) {
+      console.error('Anthropic error:', JSON.stringify(d.error));
+      return null;
+    }
     return d?.content?.[0]?.text || null;
   } catch (e) {
     clearTimeout(timer);
-    if (e.name === 'AbortError') return null;
-    console.error('AI call error:', e.message);
+    if (e.name === 'AbortError') {
+      console.error('Anthropic call timed out after', timeoutMs, 'ms');
+      return null;
+    }
+    console.error('Anthropic fetch error:', e.message);
     return null;
   }
 }
 
 // ============================================================
-// VALERAN SYSTEM PROMPT
-// ============================================================
-const VALERAN_SYSTEM = `You are Valeran, the AI field intelligence assistant for Synergy Ventures at Canton Fair 2026 in Guangzhou, China. Synergy Ventures is a Dubai-registered company that sources products from Chinese manufacturers to sell in the EU.
-
-YOUR ROLE:
-- Help the team research products, suppliers, and margins
-- Calculate landed costs and EU margin estimates
-- Provide market intelligence (EU demand + China supply)
-- Be a practical, concise assistant — the team is busy on the fair floor
-
-TEAM LANGUAGES: English, Russian, Bulgarian — always detect and match the input language.
-
-CANTON FAIR PHASES:
-- Phase 1 (Apr 15-19): Electronics, lighting, hardware, tools, machinery
-- Phase 2 (Apr 23-27): Home goods, ceramics, furniture, gifts, garden
-- Phase 3 (May 1-5): Fashion, textiles, toys, personal care, food
-
-MARGIN CALCULATION FORMULA:
-Landed cost = factory price × 1.13 (shipping ~8%, duty ~5%) + VAT depends on EU country
-EU margin % = (sell price - landed cost - marketplace fees - ads) / sell price × 100
-Target: >35% gross margin after all costs
-
-PRODUCT SCORING (1-5 each dimension):
-- Category attractiveness (EU market size & growth)
-- Product demand (search volume, marketplace sales)
-- Competition difficulty (brand dominance, review barriers)
-- Sourcing feasibility (MOQ, quality, lead time)
-- Margin quality (after all costs)
-
-RESPONSE STYLE:
-- Be concise and practical — use bullet points and tables
-- Max 250 words unless a report is requested
-- Flag important insights: ✅ good margin, ⚠️ compliance risk, ❌ too competitive
-- For margin questions, always show the calculation breakdown`;
-
-// ============================================================
-// DETECT IF VALERAN IS CALLED
+// DETECT IF VALERAN IS ADDRESSED
 // ============================================================
 function isValeranCalled(text) {
   if (!text) return false;
-  const lower = text.toLowerCase();
-  return ['valeran', 'valera', 'валеран', 'валера'].some(t => lower.includes(t));
+  const lower = text.toLowerCase().trim();
+  return ['valeran', 'valera', 'валеран', 'валера'].some(t => lower.startsWith(t));
 }
 
 // ============================================================
-// EXTRACT ENTITIES — fire-and-forget background task
+// BACKGROUND ENTITY EXTRACTION (non-blocking)
 // ============================================================
 async function extractAndSaveEntities(text, partnerId, sessionId) {
   try {
-    const prompt = `Extract structured data from this message from a Canton Fair attendee.
-Return ONLY valid JSON, nothing else. If a field has no data, use null.
+    const prompt = `Extract structured data from this Canton Fair message. Return ONLY valid JSON.
 
-Message: "${text.slice(0, 500)}"
+Message: "${text.slice(0, 600)}"
 
-Return:
+Return this exact structure (null for missing fields):
 {
   "has_supplier": boolean,
   "has_product": boolean,
-  "supplier": { "name": null, "hall": null, "booth": null, "contact": null, "wechat": null },
-  "product": { "name": null, "price_usd": null, "price_cny": null, "moq": null, "notes": null },
-  "tags": [],
+  "supplier": { "name": null, "hall": null, "booth_number": null, "contact_person": null, "wechat": null, "notes": null },
+  "product": { "name": null, "buy_price_usd": null, "notes": null },
   "language": "en"
 }`;
 
-    const raw = await callAI([{ role: 'user', content: prompt }], null, 400, 12000);
+    const raw = await callAI([{ role: 'user', content: prompt }], 'Extract structured data. Return only valid JSON.', 400, 10000);
     if (!raw) return;
+
     const data = JSON.parse(raw.replace(/```json|```/g, '').trim());
 
-    // Save supplier if found
     if (data.has_supplier && data.supplier?.name) {
-      await supabase.from('suppliers').upsert({
-        name: data.supplier.name,
-        hall: data.supplier.hall,
-        booth_number: data.supplier.booth,
-        contact_person: data.supplier.contact,
-        wechat: data.supplier.wechat,
-        session_id: sessionId,
-        created_by: partnerId
-      }, { onConflict: 'name' });
+      await supabase.from('suppliers').upsert(
+        { ...data.supplier, session_id: sessionId, created_by: partnerId },
+        { onConflict: 'name', ignoreDuplicates: true }
+      );
     }
-
-    // Save product if found
     if (data.has_product && data.product?.name) {
-      await supabase.from('products').insert({
-        name: data.product.name,
-        buy_price_usd: data.product.price_usd,
-        notes: data.product.notes,
-        session_id: sessionId,
-        created_by: partnerId
-      });
+      await supabase.from('products').insert(
+        { ...data.product, session_id: sessionId, created_by: partnerId }
+      );
     }
   } catch (e) {
-    console.error('Entity extraction failed (non-blocking):', e.message);
+    console.error('Entity extraction error (non-blocking):', e.message);
   }
 }
 
 // ============================================================
-// GET RECENT CHAT HISTORY
+// GET RECENT CONVERSATION HISTORY
 // ============================================================
-async function getChatHistory(sessionId, limit = 10) {
+async function getChatHistory(sessionId, limit = 8) {
   try {
     const { data } = await supabase
       .from('chat_messages')
       .select('role, content')
       .eq('session_id', sessionId)
-      .neq('content', '__VALERAN_WELCOME_SENT__')
+      .not('content', 'eq', '__VALERAN_WELCOME_SENT__')
       .order('created_at', { ascending: false })
       .limit(limit);
     return (data || []).reverse();
@@ -160,60 +180,55 @@ async function getChatHistory(sessionId, limit = 10) {
 }
 
 // ============================================================
-// PROCESS MESSAGE — main entry point
-// Fast path: direct AI call + save. Entity extraction is async background.
+// PROCESS MESSAGE — Main entry point
 // ============================================================
 async function processMessage({ text, partnerId, sessionId, messageType = 'text', mediaUrl = null }) {
   if (!text) return { responded: false };
 
+  const sid = sessionId || 'default';
   const triggered = isValeranCalled(text);
 
-  // Save incoming message
+  // Save user message to DB
   try {
     await supabase.from('chat_messages').insert({
-      session_id: sessionId || 'default',
+      session_id: sid,
       partner_id: partnerId || null,
       role: 'user',
       content: text
     });
-  } catch (e) {
-    console.error('Save message error:', e.message);
-  }
+  } catch (e) { console.error('Save user msg error:', e.message); }
 
-  // Always extract entities in background (non-blocking)
-  if (partnerId && sessionId) {
-    extractAndSaveEntities(text, partnerId, sessionId).catch(() => {});
+  // Fire-and-forget entity extraction (never blocks response)
+  if (triggered || text.length > 20) {
+    extractAndSaveEntities(text, partnerId, sid).catch(() => {});
   }
 
   if (!triggered) {
     return { responded: false, silent: true };
   }
 
-  // Get conversation history for context
-  const history = await getChatHistory(sessionId || 'default');
+  // Build conversation context
+  const history = await getChatHistory(sid);
+  const query = text.replace(/^(valeran|valera|валеран|валера)[,\s]*/i, '').trim() || text;
 
-  // Build messages array with history
-  const query = text.replace(/^valeran[,\s]*/i, '').trim() || text;
   const messages = [
     ...history.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
     { role: 'user', content: query }
   ];
 
-  // Get AI response
-  const reply = await callAI(messages, VALERAN_SYSTEM, 600, 22000)
-    || 'Sorry, I could not process that right now. Please try again.';
+  // Get Valeran's response
+  const reply = await callAI(messages, VALERAN_SYSTEM, 700, 22000)
+    || 'I am having trouble connecting right now. Please try again in a moment.';
 
   // Save assistant response
   try {
     await supabase.from('chat_messages').insert({
-      session_id: sessionId || 'default',
+      session_id: sid,
       partner_id: null,
       role: 'assistant',
       content: reply
     });
-  } catch (e) {
-    console.error('Save reply error:', e.message);
-  }
+  } catch (e) { console.error('Save assistant msg error:', e.message); }
 
   return { responded: true, reply };
 }
@@ -223,47 +238,47 @@ async function processMessage({ text, partnerId, sessionId, messageType = 'text'
 // ============================================================
 async function generateEveningReport(sessionId, date) {
   const { data: products } = await supabase
-    .from('products')
-    .select('name, buy_price_usd, sell_price_eur, margin_pct, notes')
-    .eq('session_id', sessionId)
-    .gte('created_at', date)
-    .order('margin_pct', { ascending: false })
-    .limit(10);
+    .from('products').select('name, buy_price_usd, sell_price_eur, margin_pct, notes, category')
+    .eq('session_id', sessionId).gte('created_at', date)
+    .order('created_at', { ascending: false }).limit(15);
+
+  const { data: suppliers } = await supabase
+    .from('suppliers').select('name, hall, booth_number, contact_person')
+    .eq('session_id', sessionId).gte('created_at', date).limit(10);
 
   const { data: meetings } = await supabase
-    .from('meetings')
-    .select('supplier_id, scheduled_at, notes')
-    .gte('scheduled_at', date)
-    .limit(10);
+    .from('meetings').select('scheduled_at, notes').gte('scheduled_at', date).limit(8);
 
-  const stats = {
-    products_logged: products?.length || 0,
-    meetings_tomorrow: meetings?.length || 0,
-    date
-  };
+  const prompt = `Generate a structured evening report for the Synergy Ventures team at Canton Fair 2026.
 
-  const prompt = `Generate a concise evening report for the Synergy Ventures team at Canton Fair.
 Date: ${date}
-Products logged today (${stats.products_logged}): ${JSON.stringify(products?.slice(0,5))}
-Tomorrow's meetings (${stats.meetings_tomorrow}): ${JSON.stringify(meetings?.slice(0,5))}
+Suppliers visited today (${suppliers?.length || 0}): ${JSON.stringify(suppliers?.slice(0,5))}
+Products logged today (${products?.length || 0}): ${JSON.stringify(products?.slice(0,8))}
+Tomorrow's meetings (${meetings?.length || 0}): ${JSON.stringify(meetings?.slice(0,5))}
 
-Include: day summary, top 3 products with highlights, tomorrow's schedule, key action items.
-Be direct and scannable — the team is tired. Max 400 words.`;
+Structure the report as:
+📊 DAY SUMMARY — key numbers
+🏆 TOP PRODUCTS — top 3-5 with margin highlights and scores
+🏭 SUPPLIER NOTES — notable observations
+📅 TOMORROW — schedule and prep notes for each meeting
+⚡ ACTION ITEMS — concrete next steps
 
-  const contentEn = await callAI([{ role: 'user', content: prompt }], null, 800, 25000)
-    || 'Evening report generation failed.';
+Be direct and scannable. The team is tired. Max 500 words in English.`;
 
-  const bgPrompt = `Translate to Bulgarian (keep emojis and formatting):\n\n${contentEn}`;
-  const contentBg = await callAI([{ role: 'user', content: bgPrompt }], null, 800, 20000) || '';
+  const contentEn = await callAI([{ role: 'user', content: prompt }], VALERAN_SYSTEM, 1000, 25000)
+    || 'Report generation failed — please generate manually.';
+
+  const bgPrompt = `Translate this evening report to Bulgarian, keeping all emojis and formatting:\n\n${contentEn}`;
+  const contentBg = await callAI([{ role: 'user', content: bgPrompt }], 'You are a professional translator. Translate accurately.', 1000, 20000) || '';
 
   const { data: report } = await supabase.from('reports').insert({
     type: 'evening',
     session_id: sessionId,
-    content: JSON.stringify({ en: contentEn, bg: contentBg, stats }),
+    content: JSON.stringify({ en: contentEn, bg: contentBg }),
     created_at: new Date().toISOString()
   }).select().single();
 
-  return { ...report, title: `Evening Report · ${date}`, content_en: contentEn, content_bg: contentBg };
+  return { ...report, title: `📊 Evening Report · ${date}`, content_en: contentEn, content_bg: contentBg };
 }
 
 // ============================================================
@@ -271,31 +286,33 @@ Be direct and scannable — the team is tired. Max 400 words.`;
 // ============================================================
 async function generateMorningReport(sessionId, date) {
   const { data: shortlisted } = await supabase
-    .from('products')
-    .select('name, buy_price_usd, sell_price_eur, margin_pct, notes')
+    .from('products').select('name, buy_price_usd, sell_price_eur, margin_pct, notes, category')
     .eq('session_id', sessionId)
-    .order('margin_pct', { ascending: false })
-    .limit(8);
+    .order('created_at', { ascending: false }).limit(10);
 
   const { data: meetings } = await supabase
-    .from('meetings')
-    .select('scheduled_at, notes')
-    .gte('scheduled_at', date)
-    .limit(5);
+    .from('meetings').select('scheduled_at, notes').gte('scheduled_at', date).limit(8);
 
-  const prompt = `Generate a morning briefing for the Synergy Ventures team at Canton Fair.
+  const prompt = `Generate a morning briefing for the Synergy Ventures team at Canton Fair 2026.
+
 Date: ${date}
-Top products to follow up: ${JSON.stringify(shortlisted?.slice(0,5))}
-Today's meetings: ${JSON.stringify(meetings)}
+Top products to follow up on: ${JSON.stringify(shortlisted?.slice(0,6))}
+Today's scheduled meetings: ${JSON.stringify(meetings)}
 
-Include: priority follow-ups with specific questions to ask, today's meeting prep, recommended areas to explore.
-Be actionable — the team reads this over breakfast. Max 350 words.`;
+Structure the briefing as:
+🌅 GOOD MORNING — date and phase
+🎯 PRIORITY FOLLOW-UPS — which products to revisit and WHY, with specific questions to ask suppliers
+📅 TODAY'S AGENDA — each meeting with prep notes
+🔍 AREAS TO EXPLORE — categories or halls to focus on today
+💡 KEY INSIGHT — one actionable observation from yesterday's data
 
-  const contentEn = await callAI([{ role: 'user', content: prompt }], null, 800, 25000)
-    || 'Morning report generation failed.';
+Be specific and actionable. The team reads this over breakfast. Max 400 words in English.`;
 
-  const bgPrompt = `Translate to Bulgarian (keep emojis and formatting):\n\n${contentEn}`;
-  const contentBg = await callAI([{ role: 'user', content: bgPrompt }], null, 800, 20000) || '';
+  const contentEn = await callAI([{ role: 'user', content: prompt }], VALERAN_SYSTEM, 900, 25000)
+    || 'Morning briefing generation failed.';
+
+  const bgPrompt = `Translate to Bulgarian, keeping all emojis and formatting:\n\n${contentEn}`;
+  const contentBg = await callAI([{ role: 'user', content: bgPrompt }], 'You are a professional translator.', 900, 20000) || '';
 
   const { data: report } = await supabase.from('reports').insert({
     type: 'morning',
@@ -304,7 +321,7 @@ Be actionable — the team reads this over breakfast. Max 350 words.`;
     created_at: new Date().toISOString()
   }).select().single();
 
-  return { ...report, title: `Morning Briefing · ${date}`, content_en: contentEn, content_bg: contentBg };
+  return { ...report, title: `🌅 Morning Briefing · ${date}`, content_en: contentEn, content_bg: contentBg };
 }
 
 module.exports = { processMessage, generateEveningReport, generateMorningReport, isValeranCalled, callAI };
