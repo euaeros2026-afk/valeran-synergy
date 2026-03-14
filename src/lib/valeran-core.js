@@ -131,7 +131,7 @@ async function processMessage(opts) {
 }
 
 async function analyseCatalogue(content, supplierId, sessionId, uploadId) {
-  var prompt = 'Analyse this supplier catalogue from Canton Fair. Extract ALL products. Return a JSON array: [{"name":"...","description":"...","price_usd":null,"moq":null,"materials":"...","notes":"..."}]. Content: ' + content.slice(0, 5000);
+  var prompt = 'You are a Canton Fair sourcing analyst. Analyse this supplier catalogue. Extract ALL products into a JSON array. Each product must have: name, description, price_usd (number or null), moq (min order qty, number or null), materials, certifications, notes. Return ONLY valid JSON array, no other text. Content: ' + content.slice(0, 5000);
   var raw = await callAI([{ role: 'user', content: prompt }], 'You are a product data extractor. Return only a valid JSON array.', 2000, 30000);
   var products = [];
   if (raw) {
@@ -143,7 +143,7 @@ async function analyseCatalogue(content, supplierId, sessionId, uploadId) {
       await supabase.from('products').insert({ name: p.name, notes: [p.description, p.materials, p.notes].filter(Boolean).join(' | '), buy_price_usd: p.price_usd || null, supplier_id: supplierId || null, session_id: sessionId || 'default', category: 'Catalogue Import' }).catch(function() {});
     }
   }
-  var summary = await callAI([{ role: 'user', content: 'Summarise this supplier catalogue in 3 sentences: ' + content.slice(0, 2000) }], BASE_SYSTEM, 200, 12000) || 'Catalogue analysed.';
+  var summary = await callAI([{ role: 'user', content: 'Summarise this supplier catalogue for a Telegram group. Format: *SUPPLIER OVERVIEW* line, then • bullet points for top products with price ranges and MOQ where available, then • key advantages. Use *Bold* for section titles, • for bullets. Max 200 words. No ## headers, no language prefix labels. Content: ' + content.slice(0, 2000) }], BASE_SYSTEM, 200, 12000) || 'Catalogue analysed.';
   if (uploadId) {
     await supabase.from('catalogue_uploads').update({ analysis_status: 'done', products_extracted: products.length, summary: summary }).eq('id', uploadId);
   }
