@@ -576,21 +576,23 @@ app.post('/api/telegram/webhook', async function(req, res) {
 
   try {
     var memory  = await core.loadMemory();
-    var histR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(10);
+    var histR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(8);
     var history = (histR.data || []).reverse();
     var msgs    = history.map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
     msgs.push({ role: 'user', content: query });
 
+    // Save user message FIRST (before AI call so it's always recorded)
+    await supabase.from('chat_messages').insert({ session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from }).catch(function(){});
+
     var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 18000);
-    if (!reply) { res.sendStatus(200); return; }
+    if (!reply) reply = '⚠️ Sorry, I had trouble responding. Please try again.';
 
     reply = cleanTG(reply);
-    await tgSend(chatId, reply, msg.message_id);
-    await core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from).catch(function() {});
-    await core.saveMessage(sid, 'assistant', reply, null, 'telegram', 'Valeran').catch(function() {});
-  } catch(e) { console.error('[TG]', e.message); }
+    await tgSend(chatId, reply, msg.message_id).catch(function() { return tgSend(chatId, reply, null); });
 
-  res.sendStatus(200);
+    // Save assistant reply
+    await supabase.from('chat_messages').insert({ session_id: sid, role: 'assistant', content: reply, source: 'telegram', telegram_user: 'Valeran' }).catch(function(){});
+  } catch(e) { console.error('[TG]', e.message); }res.sendStatus(200);
 });
 
 // ---- CRON ----
