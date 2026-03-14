@@ -44,7 +44,7 @@ app.post('/api/chat/message', requireAuth, async function(req, res) {
   try {
     var result = await core.processMessage({ text: req.body.text, partnerId: req.partner && req.partner.id, sessionId: sid });
     res.json({ reply: result.reply || 'Noted.', session_id: sid, responded: result.responded });
-  } catch(e) { res.json({ reply: 'Error Ã¢ÂÂ try again.', session_id: sid }); }
+  } catch(e) { res.json({ reply: 'Error ÃÂ¢ÃÂÃÂ try again.', session_id: sid }); }
 });
 
 app.get('/api/chat/messages', requireAuth, async function(req, res) {
@@ -213,7 +213,7 @@ var TG_SYSTEM = 'You are Valeran, AI assistant for Synergy Ventures at Canton Fa
   'Team: Alexander (EN), Ina (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi (BG). ' +
   'LANGUAGE: reply in exact same language as the message. BG=BG, RU=RU, EN=EN. Never mix. ' +
   'STYLE: short and direct. 1-3 sentences for simple questions. No fluff. ' +
-  'Use [Context:...] when present Ã¢ÂÂ that is what someone replied to.';
+  'Use [Context:...] when present ÃÂ¢ÃÂÃÂ that is what someone replied to.';
 
 async function tgSend(chatId, text, replyToId) {
   var body = { chat_id: chatId, text: text.slice(0, 4000) };
@@ -226,8 +226,8 @@ async function tgSend(chatId, text, replyToId) {
 // ---- TELEGRAM WEBHOOK ----
 // CRITICAL: ALL work happens BEFORE res.sendStatus(200).
 // Vercel kills async code after res.send().
-// For documents: takes 10-20s Ã¢ÂÂ Telegram retries after 5s (harmless).
-// For text: takes 3-5s Ã¢ÂÂ within Telegram's window.
+// For documents: takes 10-20s ÃÂ¢ÃÂÃÂ Telegram retries after 5s (harmless).
+// For text: takes 3-5s ÃÂ¢ÃÂÃÂ within Telegram's window.
 
 app.post('/api/telegram/webhook', async function(req, res) {
   var body = req.body || {};
@@ -265,9 +265,12 @@ app.post('/api/telegram/webhook', async function(req, res) {
 
       // ---- LEVEL 1: Try direct text extraction ----
       var fileText = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
-      var readableChars = (fileText.match(/[a-zA-Z0-9\u0400-\u04FF]/g) || []).length;
+      // Count actual words (3+ letter sequences) — binary PDFs have scattered chars, not real words
+      var words = (fileText.match(/[a-zA-Z\u0400-\u04FF]{3,}/g) || []);
+      var wordDensity = words.length / Math.max(1, buffer.length / 100);
+      var hasRealText = words.length > 80 && wordDensity > 1.5;
 
-      if (readableChars > 300) {
+      if (hasRealText) {
         method = 'text (Haiku)';
         var prompt = 'Analyse this document. What is it about (1 sentence)? Key facts, dates, locations, rules, requirements (bullet list). Any actions needed? Document: ' + fileText.slice(0, 5000);
         summary = await core.callAI([{ role: 'user', content: prompt }], TG_SYSTEM, 700, 25000);
@@ -341,11 +344,11 @@ app.post('/api/telegram/webhook', async function(req, res) {
       // ---- FALLBACK: save with caption, ask for text version ----
       if (!summary) {
         method = 'fallback';
-        summary = 'Saved "' + fname + '" ✓' +
+        summary = 'Saved "' + fname + '" â' +
           (cap ? '\nYour note: ' + cap : '') +
-          '\n\nThis PDF contains only scanned images — no readable text layer. To make it work:\n' +
-          '1. Open on PC → upload to Google Drive → right-click → Open with Google Docs (auto-OCR)\n' +
-          '2. Download as .txt → send me that file\n' +
+          '\n\nThis PDF contains only scanned images â no readable text layer. To make it work:\n' +
+          '1. Open on PC â upload to Google Drive â right-click â Open with Google Docs (auto-OCR)\n' +
+          '2. Download as .txt â send me that file\n' +
           'Or just tell me the key info in a message and I will remember it.';
       }
 
@@ -388,7 +391,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
   if (msg.reply_to_message && msg.reply_to_message.text) {
     var rFrom = (msg.reply_to_message.from && msg.reply_to_message.from.first_name) || 'someone';
     var isBot = !!(msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
-    var ctx = isBot ? '[Context Ã¢ÂÂ you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context Ã¢ÂÂ ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
+    var ctx = isBot ? '[Context ÃÂ¢ÃÂÃÂ you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context ÃÂ¢ÃÂÃÂ ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
     query = ctx + '\n' + from + ' asks: ' + query;
   }
 
