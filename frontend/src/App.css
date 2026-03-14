@@ -1,5 +1,5 @@
 /* ============================================================
-   VALERAN — App CSS
+   VALERAN â App CSS
    Responsive, mobile-first, works on all screen sizes
    ============================================================ */
 
@@ -34,12 +34,12 @@ body {
 }
 
 /* ============================================================
-   APP SHELL — fills viewport exactly
+   APP SHELL â fills viewport exactly
    ============================================================ */
 .app {
   display: flex;
   flex-direction: column;
-  height: 100dvh; /* dynamic viewport height — handles mobile browser chrome */
+  height: 100dvh; /* dynamic viewport height â handles mobile browser chrome */
   width: 100%;
   overflow: hidden;
 }
@@ -116,7 +116,7 @@ body {
   overflow: hidden;
 }
 
-/* Header — fixed at top, doesn't scroll */
+/* Header â fixed at top, doesn't scroll */
 .chat-header {
   display: flex;
   align-items: center;
@@ -141,7 +141,7 @@ body {
   box-shadow: 0 0 6px var(--valeran);
 }
 
-/* Messages — scrollable area */
+/* Messages â scrollable area */
 .messages-list {
   flex: 1;
   overflow-y: auto;
@@ -222,7 +222,7 @@ body {
   border: 1px solid rgba(255,107,107,0.2);
 }
 
-/* Input bar — fixed at bottom */
+/* Input bar â fixed at bottom */
 .chat-input-bar {
   display: flex;
   align-items: center;
@@ -353,3 +353,42 @@ button.btn-danger { background: var(--danger); color: #fff; }
   background: linear-gradient(135deg, #0d1b3e 0%, #050e1a 100%);
   padding: 20px;
 }
+
+/* ============================================================
+   PRESENCE BAR
+   ============================================================ */
+.presence-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background: rgba(0,0,0,0.3);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex-shrink: 0;
+  -webkit-overflow-scrolling: touch;
+}
+.presence-bar::-webkit-scrollbar { display: none; }
+
+.presence-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+}
+.presence-pill.online  { background: rgba(74,222,128,0.12); border-color: rgba(74,222,128,0.25); color: var(--valeran); }
+.presence-pill.offline { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.08); color: var(--text3); }
+
+.presence-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.presence-dot.online  { background: var(--valeran); box-shadow: 0 0 4px var(--valeran); }
+.presence-dot.offline { background: var(--text3); }
