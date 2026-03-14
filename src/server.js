@@ -559,8 +559,8 @@ app.post('/api/telegram/webhook', async function(req, res) {
 
     reply = cleanTG(reply);
     await tgSend(chatId, reply, msg.message_id);
-    core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from).catch(function() {});
-    core.saveMessage(sid, 'assistant', reply, null, 'telegram', 'Valeran').catch(function() {});
+    await core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from).catch(function() {});
+    await core.saveMessage(sid, 'assistant', reply, null, 'telegram', 'Valeran').catch(function() {});
   } catch(e) { console.error('[TG]', e.message); }
 
   res.sendStatus(200);
