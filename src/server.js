@@ -20,7 +20,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 const visionClient = new vision.ImageAnnotatorClient();
 const upload = multer({ storage: multer.memoryStorage() });
 
-app.use(cors({ origin: process.env.APP_URL }));
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 
 // ============================================================
@@ -34,10 +34,8 @@ async function requireAuth(req, res, next) {
   if (error || !user) return res.status(401).json({ error: 'Invalid token' });
 
   const { data: partner } = await supabase.from('partner_profiles').select('*').eq('email', user.email).single();
-  if (!partner) return res.status(403).json({ error: 'Not a registered partner' });
-
   req.user = user;
-  req.partner = partner;
+  req.partner = partner || { email: user.email, name: user.email, role: 'partner', language: 'en' };
   next();
 }
 
@@ -376,7 +374,7 @@ async function getActiveSessionId(date) {
 
 
 // ============================================================
-// TELEGRAM WEBHOOK â receive messages from group
+// TELEGRAM WEBHOOK Ã¢ÂÂ receive messages from group
 // ============================================================
 app.post('/api/telegram/webhook', async (req, res) => {
   res.sendStatus(200);
@@ -406,7 +404,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: msg.chat.id,
-        text: 'ð¤ ' + response.content[0].text,
+        text: 'Ã°ÂÂ¤Â ' + response.content[0].text,
         reply_to_message_id: msg.message_id
       })
     });
