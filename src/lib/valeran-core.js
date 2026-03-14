@@ -133,7 +133,25 @@ async function processMessage(opts) {
 }
 
 async function analyseCatalogue(content, supplierId, sessionId, uploadId) {
-  if (!supplierId) { try { var sr=await callAI([{role:'user',content:'Extract only the company/supplier name from this catalogue. Return JSON: {"name":"Company Name"}. Content: '+content.slice(0,800)}],'Extract company name. Return only valid JSON.',80,6000); if(sr){var sd=JSON.parse(sr.replace(/```json|```/g,'').trim()); if(sd&&sd.name&&sd.name.length>2){var ex=await supabase.from('suppliers').select('id').ilike('name',sd.name).limit(1); if(ex.data&&ex.data.length){supplierId=ex.data[0].id;}else{var ns=await supabase.from('suppliers').insert({name:sd.name,session_id:null,created_by:null}).select('id').single(); if(ns.data)supplierId=ns.data.id;}}} } catch(se){} }
+  // Auto-extract supplier name from catalogue content
+  if (!supplierId) {
+    try {
+      var supPrompt = 'From this catalogue, extract only the company/supplier name. Return JSON: {"name":"Company Name"}. Content: ' + content.slice(0,600);
+      var supRaw = await callAI([{role:'user',content:supPrompt}], 'Extract company name. Return only valid JSON.', 80, 6000);
+      if (supRaw) {
+        var supData = JSON.parse(supRaw.replace(/```json|```/g,'').trim());
+        if (supData && supData.name && supData.name.length > 2) {
+          var exSup = await supabase.from('suppliers').select('id').ilike('company_name', supData.name).limit(1);
+          if (exSup.data && exSup.data.length) {
+            supplierId = exSup.data[0].id;
+          } else {
+            var newSup = await supabase.from('suppliers').insert({company_name: supData.name, fair_session_id: null}).select('id').single();
+            if (newSup.data) supplierId = newSup.data.id;
+          }
+        }
+      }
+    } catch(supErr) { console.error('[sup extract]', supErr.message); }
+  }
   var prompt = 'You are a Canton Fair sourcing analyst. Analyse this supplier catalogue. Extract ALL products into a JSON array. Each product must have: name, description, price_usd (number or null), moq (min order qty, number or null), materials, certifications, notes. Return ONLY valid JSON array, no other text. Content: ' + content.slice(0, 5000);
   var raw = await callAI([{ role: 'user', content: prompt }], 'You are a product data extractor. Return only a valid JSON array.', 2000, 30000);
   var products = [];
