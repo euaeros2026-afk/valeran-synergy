@@ -285,6 +285,33 @@ app.post('/api/search', requireAuth, async function(req, res) {
   res.json(results);
 });
 
+app.get('/api/debug/tg', async function(req, res) {
+  var result = { steps: [] };
+  try {
+    result.steps.push('1_start');
+    var sid = (await getActiveSessionId()) || 'team-chat';
+    result.sid = sid;
+    result.steps.push('2_sid='+sid);
+    var memory = await core.loadMemory();
+    result.memLen = memory.length;
+    result.steps.push('3_mem='+memory.length);
+    var histR = await supabase.from('chat_messages').select('role,content').eq('session_id',sid).order('created_at',{ascending:false}).limit(3);
+    result.histCount = (histR.data||[]).length;
+    result.steps.push('4_hist='+result.histCount);
+    var reply = await core.callAI([{role:'user',content:'Say CONFIRM in one word'}], TG_SYSTEM+memory, 50, 10000);
+    result.reply = reply ? reply.slice(0,50) : null;
+    result.steps.push('5_reply='+(reply?reply.slice(0,20):'NULL'));
+    if (reply) {
+      var saveR = await supabase.from('chat_messages').insert({session_id:sid,role:'assistant',content:'DEBUG_TG_TEST_'+Date.now(),source:'telegram',telegram_user:'Valeran'});
+      result.saveError = saveR.error ? saveR.error.message : null;
+      result.steps.push('6_save='+(saveR.error?saveR.error.message:'OK'));
+    }
+    res.json({ok:true, result:result});
+  } catch(e) {
+    res.json({ok:false, error:e.message, steps:result.steps});
+  }
+});
+
 // ---- HELPERS ----
 var TG_SYSTEM = 'You are Valeran, AI assistant for Synergy Ventures at Canton Fair 2026 in Guangzhou. ' +
   'Team: Alexander (EN), Ina (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi (BG). ' +
