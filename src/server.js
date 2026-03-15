@@ -600,19 +600,15 @@ app.post('/api/telegram/webhook', async function(req, res) {
   // Respond to Telegram LAST (total time ~2.8s < 5s limit)
   res.sendStatus(200);
 
-// ---- TG TEST ----
-app.get('/api/tg-test', async function(req, res) {
-  try {
-    var token = process.env.TELEGRAM_BOT_TOKEN || 'NOT SET';
-    var tokenPreview = token.slice(0, 15) + '...' + token.slice(-4);
-    var r = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: '-1003843622106', text: 'TG-TEST: bot works at ' + new Date().toISOString().slice(11,19) })
-    });
-    var j = await r.json();
-    res.json({ tokenPreview: tokenPreview, apiStatus: r.status, ok: j.ok, msgId: j.result && j.result.message_id, error: j.description });
-  } catch(e) { res.json({ error: e.message }); }
+
+app.get('/api/tg-diag', async function(req, res) {
+  var token = process.env.TELEGRAM_BOT_TOKEN || 'NOT_SET';
+  var r = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({chat_id: '-1003843622106', text: 'DIAG ' + new Date().toISOString().slice(11,19)})
+  });
+  var j = await r.json();
+  res.json({tokenLen: token.length, tokenEnd: token.slice(-6), apiOk: j.ok, msgId: j.result && j.result.message_id, err: j.description || null});
 });
 
 app.listen(process.env.PORT || 3001, function() { console.log('Valeran online'); });
