@@ -577,19 +577,19 @@ app.post('/api/telegram/webhook', async function(req, res) {
     query = ctx + '\n' + from + ' asks: ' + query;
   }
 
-  try {
-    var result = await core.processMessage({
-      text: query,
-      sessionId: sid,
-      partnerId: null,
-      senderName: from
-    });
-    if (result && result.reply) {
-      var tgReply = cleanTG(result.reply);
-      await tgSend(chatId, tgReply, msg.message_id);
-    }
-  } catch(e) { console.error('[TG text]', e.message); }
+  // Respond immediately so Telegram doesn't retry
   res.sendStatus(200);
+  // Run AI + saves as a background promise
+  core.processMessage({
+    text: query,
+    sessionId: sid,
+    partnerId: null,
+    senderName: from
+  }).then(function(result) {
+    if (result && result.reply) {
+      tgSend(chatId, cleanTG(result.reply), msg.message_id).catch(function(e){ console.error('[TG send]', e.message); });
+    }
+  }).catch(function(e) { console.error('[TG text]', e.message); });
 });
 
 // ---- CRON ----
