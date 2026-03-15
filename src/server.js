@@ -359,246 +359,35 @@ async function tgSend(chatId, text, replyToId) {
 // For documents: takes 10-20s ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ Telegram retries after 5s (harmless).
 // For text: takes 3-5s ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ within Telegram's window.
 
-app.post('/api/telegram/webhook', async function(req, res) {
-  // Respond to Telegram immediately — prevents timeout
+app.post('/api/telegram/webhook', function(req, res) {
+  // Respond to Telegram immediately (sync handler = fast response)
   res.status(200).json({ok: true});
-  // Run all AI processing asynchronously (Vercel keeps function alive up to 60s)
-  ;(async function() {
-    try {
-      var body = req.body || {};
-      var msg  = body.message || body.channel_post || body.edited_message;
-    
-      var from   = (msg.from && msg.from.first_name) || 'Partner';
-      var chatId = msg.chat && msg.chat.id;
-      var sid    = (await getActiveSessionId()) || 'team-chat';
-    
-      // ---- ALL FILE TYPES ----
-      if (msg.document) {
-        var doc   = msg.document;
-        var fname = doc.file_name || 'file';
-        var fext  = fname.toLowerCase().split('.').pop();
-        var mime  = doc.mime_type || '';
-        var cap   = (msg.caption && msg.caption.trim()) || '';
-        var isPDF    = fext === 'pdf' || mime === 'application/pdf';
-        var isImage  = ['jpg','jpeg','png','gif','webp','bmp','tiff'].indexOf(fext) > -1 || mime.indexOf('image/') === 0;
-        var isOffice = ['xlsx','xls','docx','doc','pptx','ppt'].indexOf(fext) > -1 || mime.indexOf('officedocument') > -1;
-        var isText   = ['txt','md','json','xml','csv'].indexOf(fext) > -1 || mime.indexOf('text/') === 0;
-        try {
-          var fi = await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/getFile?file_id=' + doc.file_id);
-          var fd = await fi.json();
-          if (!fd.ok) throw new Error('Cannot get file');
-          var dlCtrl = new AbortController(); setTimeout(function(){ dlCtrl.abort(); }, 20000);
-          var dlResp = await fetch('https://api.telegram.org/file/bot' + process.env.TELEGRAM_BOT_TOKEN + '/' + fd.result.file_path, { signal: dlCtrl.signal });
-          if (!dlResp.ok) throw new Error('Download failed');
-          var buffer = Buffer.from(await dlResp.arrayBuffer());
-          var b64 = buffer.toString('base64');
-          var summary = ''; var method = '';
-    
-          if (isImage) {
-            method = 'image vision';
-            var imgMime = mime || ('image/' + (fext === 'jpg' ? 'jpeg' : fext));
-            var iCtrl = new AbortController(); setTimeout(function(){ iCtrl.abort(); }, 25000);
-            var iR = await fetch('https://api.anthropic.com/v1/messages', {
-              method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-              body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 600, messages: [{ role: 'user', content: [
-                { type: 'image', source: { type: 'base64', media_type: imgMime, data: b64 } },
-                { type: 'text', text: 'You are analysing a supplier catalogue or product image for a Canton Fair sourcing team. Extract ALL visible information: product names, model numbers, prices (USD/CNY/EUR), MOQ, materials, dimensions, certifications, supplier name/booth. Format your response for Telegram using *Bold* for section titles and • for bullets. No markdown headers (##), no language prefix labels.' + (cap ? ' Note: ' + cap : '') }
-              ]}] }), signal: iCtrl.signal });
-            var iD = await iR.json(); summary = iD.content && iD.content[0] && iD.content[0].text || '';
-          } else if (isText) {
-            method = 'text';
-            var txtRaw = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
-            summary = await core.callAI([{ role: 'user', content: 'You are a Canton Fair sourcing analyst. Extract ALL business data from this file: supplier names, product names, model numbers, prices (note currency), MOQ, payment terms, contacts, certifications. Format the response for Telegram: *Section Title* for headers, • for bullet points, no ## markdown, no language prefix. Group products by category if multiple exist. ' + txtRaw.slice(0,5000) }], TG_SYSTEM, 600, 18000);
-          } else if (isOffice) {
-            method = 'office';
-            var rawTxt = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ');
-            var extracted = (rawTxt.match(/[a-zA-Z0-9\u0400-\u04FF]{3,}/g) || []).join(' ');
-            if (extracted.length > 200) {
-              method = 'office (text)';
-              summary = await core.callAI([{ role: 'user', content: 'You are a Canton Fair sourcing analyst. Extract all business data from this ' + fext + ' file. Extract business info: ' + extracted.slice(0,4000) }], TG_SYSTEM, 600, 18000);
-            } else {
-              summary = 'Saved "' + fname + '"' + (cap ? '\nNote: ' + cap : '') + '\n\n' + fext.toUpperCase() + ' file - cannot read binary content.\nTo share: export as .csv or .txt and send that, or paste the key data as a message.';
-            }
-          } else if (isPDF) {
-            var pTxt = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g,' ');
-            var wc = (pTxt.match(/[a-zA-Z\u0400-\u04FF]{3,}/g)||[]).length;
-            if (wc > 80 && wc/Math.max(1,buffer.length/100) > 1.5) { method='PDF text'; summary=await core.callAI([{role:'user',content:'You are a Canton Fair sourcing analyst. Extract all business data: products, prices, MOQ, supplier info, certifications, payment terms, contacts. Format for Telegram: *Section Title* for headers, • for bullets, no ## markdown, no language prefix. '+pTxt.slice(0,5000)}],TG_SYSTEM,700,22000); }
-            if (!summary) {
-              method='PDF vision';
-              var pCtrl=new AbortController(); setTimeout(function(){pCtrl.abort();},40000);
-              try {
-                var pR=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:[{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},{type:'text',text:'You are analysing a supplier document for a Canton Fair sourcing team. Extract: supplier name, all products with prices/MOQ, certifications, payment terms, contacts, booth/hall info if visible. Format for Telegram: use *Bold Text* for section titles (NOT ## headers), • for bullet points. Group by: *SUPPLIER*, *PRODUCTS*, *PRICING*, *CONTACTS*. No language prefix labels.'+(cap?' Note: '+cap:'')}]}]}),signal:pCtrl.signal});
-                var pD=await pR.json(); var ps=pD.content&&pD.content[0]&&pD.content[0].text||''; if(ps.length>50)summary=ps;
-              } catch(pe){}
-            }
-            if (!summary && process.env.GOOGLE_API_KEY) {
-              method='OCR';
-              try {
-                var oR=await fetch('https://vision.googleapis.com/v1/images:annotate?key='+process.env.GOOGLE_API_KEY,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requests:[{image:{content:b64.slice(0,4000000)},features:[{type:'DOCUMENT_TEXT_DETECTION'}]}]})});
-                var oD=await oR.json(); var oT=oD.responses&&oD.responses[0]&&oD.responses[0].fullTextAnnotation&&oD.responses[0].fullTextAnnotation.text||'';
-                if(oT.length>100)summary=await core.callAI([{role:'user',content:'Analyse OCR text: '+oT.slice(0,4000)}],TG_SYSTEM,600,18000);
-              } catch(oe){}
-            }
-          }
-          if (!summary) { method='fallback'; summary='Saved "'+fname+'"'+(cap?'\nNote: '+cap:'')+'\n\nCould not read file. Try PDF, image, CSV, or TXT, or paste the key info directly.'; }
-          var reply = (function formatTG(s) {
-          s = s.replace(/^\*\*(?:EN|BG|RU|English|Bulgarian|Russian)\*\*[\s\n]*/gim, '');
-          s = s.replace(/^(?:EN|BG|RU|English|Bulgarian|Russian):\s*/gim, '');
-          s = s.replace(/^#{1,6}\s+(.+)/gm, function(_, t) { return '\n*' + t.trim() + '*'; });
-          s = s.replace(/\*\*([^*\n]+)\*\*/g, '*$1*');
-          s = s.replace(/^[\s]*[-*\u2022\u2013]\s+/gm, '\u2022 ');
-          s = s.replace(/\n{3,}/g, '\n\n');
-          return s.trim();
-        })(summary);
-        if (method !== 'fallback') {
-          var safeFile = fname.replace(/[_*\[\]()~`>#+=|{}.!]/g, '\\$&');
-          reply = '\uD83D\uDCCB *' + safeFile + '*\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n' + reply + '\n\n_(' + method + ')_';
-        }
-        reply = reply.slice(0, 3900);
-          await core.saveCorrection('File "'+fname+'" from '+from+(cap?'. Note: '+cap:'')+'. Summary: '+summary.slice(0,500), null, 'file_'+fname.replace(/[^a-z0-9]/gi,'_').slice(0,30));
-          await supabase.from('catalogue_uploads').insert({filename:fname,session_id:sid,analysis_status:method!=='fallback'?'done':'failed',products_extracted:0,summary:summary.slice(0,2000),raw_analysis:{caption:cap,from:from,method:method,mime:mime,size:doc.file_size}});
-          await tgSend(chatId, reply, msg.message_id);
-          await core.saveMessage(sid,'user',from+' sent: '+fname,null,'telegram',from);
-          await core.saveMessage(sid,'assistant',reply,null,'telegram','Valeran');
-        } catch(e){ console.error('[TG file]',e.message); await tgSend(chatId,'Could not process "'+fname+'": '+e.message,msg.message_id); }
-        res.sendStatus(200); return;
-      }
-    
-      // ---- VOICE (Telegram) ----
-      // Voice messages ALWAYS get a response ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ no trigger word needed
-      if (msg.voice || msg.audio) {
-        var vf = msg.voice || msg.audio;
-        try {
-          var vfi = await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/getFile?file_id=' + vf.file_id);
-          var vfd = await vfi.json();
-          if (!vfd.ok) throw new Error('Cannot get voice file');
-          var vCtrl = new AbortController();
-          setTimeout(function() { vCtrl.abort(); }, 20000);
-          var vResp = await fetch('https://api.telegram.org/file/bot' + process.env.TELEGRAM_BOT_TOKEN + '/' + vfd.result.file_path, { signal: vCtrl.signal });
-          if (!vResp.ok) throw new Error('Voice download failed');
-          var vBuf = Buffer.from(await vResp.arrayBuffer());
-    
-          // Transcribe with auto language detection (try EN first, then RU, BG)
-          var transcript = '';
-          var langConfigs = [
-            { languageCode: 'en-US', alternativeLanguageCodes: ['ru-RU', 'bg-BG'] },
-            { languageCode: 'ru-RU', alternativeLanguageCodes: ['en-US', 'bg-BG'] },
-            { languageCode: 'bg-BG', alternativeLanguageCodes: ['en-US', 'ru-RU'] }
-          ];
-          for (var lci = 0; lci < langConfigs.length && !transcript; lci++) {
-            try {
-              var sR = await fetch('https://speech.googleapis.com/v1/speech:recognize?key=' + process.env.GOOGLE_API_KEY, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  audio: { content: vBuf.toString('base64') },
-                  config: Object.assign({ encoding: 'OGG_OPUS', sampleRateHertz: 48000, enableAutomaticPunctuation: true }, langConfigs[lci])
-                })
-              });
-              var sD = await sR.json();
-              var t = (sD.results || []).map(function(r) { return r.alternatives[0].transcript; }).join(' ').trim();
-              if (t && t.length > 3) transcript = t;
-            } catch(se) { console.error('[voice transcribe]', se.message); }
-          }
-    
-          if (!transcript) {
-            await tgSend(chatId, 'Could not transcribe. Speak clearly closer to mic, or type instead.', msg.message_id);
-            res.sendStatus(200); return;
-          }
-    
-          // Show transcript so the whole group sees what was said
-          await tgSend(chatId, '\uD83C\uDFA4 ' + from + ': \u201c' + transcript + '\u201d', msg.message_id);
-          await core.saveMessage(sid, 'user', from + ' (voice): ' + transcript, null, 'telegram', from);
-    
-          // Strip trigger word if present (but we always respond regardless)
-          var vQuery = transcript.replace(/^(valeran|valera|\u0432\u0430\u043b\u0435\u0440\u0430\u043d|\u0432\u0430\u043b\u0435\u0440\u0430)[,\s!?]*/i, '').trim() || transcript;
-    
-          // Detect work-relevant content for auto-logging
-          var workKw = ['meeting', 'supplier', 'product', 'price', 'order', 'booth', 'hall', 'sample', 'contact', 'wechat', 'email', 'schedule',
-            '\u0432\u0441\u0442\u0440\u0435\u0447\u0430', '\u0441\u0440\u0435\u0449\u0430', '\u0434\u043e\u0441\u0442\u0430\u0432\u0447\u0438\u043a',
-            '\u043f\u0440\u043e\u0434\u0443\u043a\u0442', '\u0446\u0435\u043d\u0430', '\u043f\u043e\u0440\u044a\u0447\u043a\u0430',
-            '\u0437\u0430\u043a\u0430\u0437', '\u043e\u0431\u0440\u0430\u0437\u0435\u0446'];
-          var isWork = workKw.some(function(kw) { return transcript.toLowerCase().indexOf(kw) > -1; });
-    
-          var vSystemExtra = isWork
-            ? ' This voice note contains work information. Respond normally, then on a new line add "\nLOGGED:" followed by 1-3 bullet points summarising the key facts (meeting time/place, supplier name/contact, product details, etc.).'
-            : '';
-    
-          var vMem  = await core.loadMemory();
-          var vHR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(10);
-          var vMsgs = ((vHR.data || []).reverse()).map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
-          vMsgs.push({ role: 'user', content: vQuery });
-    
-          var vReply = await core.callAI(vMsgs, TG_SYSTEM + vSystemExtra + vMem, 500, 18000);
-          if (!vReply) { res.sendStatus(200); return; }
-    
-          // Split response and LOGGED section if present
-          if (vReply.indexOf('LOGGED:') > -1) {
-            var vParts  = vReply.split('LOGGED:');
-            var vText   = vParts[0].trim();
-            var vLogged = vParts[1] ? vParts[1].trim() : '';
-            vText = cleanTG(vText);
-        await tgSend(chatId, vText, null);
-            if (vLogged) {
-              await core.saveCorrection('Voice log [' + from + ']: ' + vLogged, null, 'voice_log');
-              await tgSend(chatId, '\uD83D\uDCCB *Logged:* ' + vLogged, null);
-            }
-          } else {
-            vReply = cleanTG(vReply);
-        await tgSend(chatId, vReply, null);
-          }
-          await core.saveMessage(sid, 'assistant', vReply, null, 'telegram', 'Valeran');
-    
-        } catch(ve) {
-          console.error('[TG voice]', ve.message);
-          await tgSend(chatId, 'Voice error: ' + ve.message, msg.message_id);
-        }
-        res.sendStatus(200); return;
-      }
-    
-      // ---- TEXT ----
-      var text = (msg.text && msg.text.trim()) || '';
-      if (!text) { res.sendStatus(200); return; }
-    
-      // Strict: must start with 'Valeran,' or 'Valera,' (with separator) Ã¢ÂÂ prevents matching 'Valentina' etc
-      var isPrefix  = /^(valeran|valera)[,\s!?.]/i.test(text) || /^\u0432\u0430\u043b\u0435\u0440\u0430[,\s!?.]/i.test(text);
-      var isMention = text.indexOf('@ValeranSV_bot') > -1;
-    
-      if (!isPrefix && !isMention && !isReply) {
-        core.saveMessage(sid, 'user', from + ': ' + text, null, 'telegram', from).catch(function() {});
-        res.sendStatus(200);
-        return;
-      }
-    
-      var query = text.replace(/@ValeranSV_bot/gi, '').replace(/^(valeran|valera|\u0432\u0430\u043b\u0435\u0440\u0430\u043d|\u0432\u0430\u043b\u0435\u0440\u0430)[,\s!?]*/i, '').trim() || 'Hello';
-    
-      if (msg.reply_to_message && msg.reply_to_message.text) {
-        var rFrom = (msg.reply_to_message.from && msg.reply_to_message.from.first_name) || 'someone';
-        var isBot = !!(msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
-        var ctx = isBot ? '[Context ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ you said: "' + msg.reply_to_message.text.slice(0, 300) + '"]' : '[Context ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ' + rFrom + ' said: "' + msg.reply_to_message.text.slice(0, 300) + '"]';
-        query = ctx + '\n' + from + ' asks: ' + query;
-      }
-    
-      // Dedup: skip if we already have a message with this exact text+user combo in last 30s
-      var dedup = await supabase.from('chat_messages')
-        .select('id').eq('telegram_user', from).eq('content', from + ': ' + query)
-        .gte('created_at', new Date(Date.now()-30000).toISOString()).limit(1);
-      if (dedup.data && dedup.data.length > 0) { res.sendStatus(200); return; }
-      // Respond to Telegram immediately (5s timeout requirement)
-      var _sys = (core.buildSystemPrompt ? core.buildSystemPrompt() : (core.getBaseSystem ? core.getBaseSystem() : TG_SYSTEM));
-      var _histR = await supabase.from('chat_messages').select('role,content').eq('session_id',sid).eq('source','telegram').order('created_at',{ascending:false}).limit(4);
-      var _msgs = ((_histR.data||[]).reverse()).map(function(m){return{role:m.role,content:m.content};});
-      _msgs.push({role:'user',content:from+': '+query});
-      await core.saveMessage(sid,'user',from+': '+query,null,'telegram',from);
-      var _reply = null;
-      try{_reply=await core.callAI(_msgs,_sys,400,2800,true);}catch(e){console.error('[TG AI]',e.message);}
-      if(_reply){
-        var _clean=_reply.replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n*/gm,'').replace(/^[A-Z]{2,3}:[^\n]*\n*/gm,'').trim();
-        await fetch('https://api.telegram.org/bot'+process.env.TELEGRAM_BOT_TOKEN+'/sendMessage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:String(chatId),text:_clean,reply_to_message_id:msg.message_id})}).catch(function(e){console.error('[tg]',e.message);});
-        core.saveMessage(sid,'assistant',_clean,null,'telegram','Valeran').catch(function(){});
-      }
-      res.sendStatus(200);
-    } catch(_err) { console.error('TG handler error:', _err && _err.message || _err); }
-  })();
+
+  var update = req.body;
+  var msg = update && (update.message || update.edited_message || update.channel_post);
+  if (!msg || !msg.text || (msg.from && msg.from.is_bot)) return;
+
+  var chatId = String(msg.chat.id);
+  var userText = msg.text;
+  var fromName = (msg.from && (msg.from.first_name || msg.from.username)) || 'User';
+
+  // Fire-and-forget: setTimeout keeps event loop alive on Vercel
+  setTimeout(function() {
+    var sessionId = 'tg-' + chatId;
+    core.processMessage({
+      text: userText,
+      fromName: fromName,
+      sessionId: sessionId,
+      history: [],
+      source: 'telegram'
+    }).then(function(reply) {
+      if (!reply) reply = 'Извините, произошла ошибка.';
+      return tgSend(chatId, reply);
+    }).catch(function(err) {
+      console.error('TG processing error:', err && err.message ? err.message : String(err));
+      tgSend(chatId, 'Ошибка обработки запроса. Попробуйте снова.').catch(function(){});
+    });
+  }, 0);
 });
 
 // ---- PROCESS-TG ----
