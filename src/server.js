@@ -581,6 +581,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
     var memory  = await core.loadMemory();
     var histR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(8);
     var history = (histR.data || []).reverse();
+    await supabase.from('chat_messages').insert({session_id:sid,role:'user',content:'TRY_BLOCK_hist='+history.length+'_sid='+sid,source:'telegram',telegram_user:'TRACE0'});
     supabase.from('chat_messages').insert({session_id:sid,role:'user',content:'TRACE2_hist_count='+history.length,source:'telegram',telegram_user:'TRACE'});
     var msgs    = history.map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
     msgs.push({ role: 'user', content: query });
