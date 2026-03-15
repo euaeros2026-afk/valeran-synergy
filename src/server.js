@@ -574,22 +574,36 @@ app.post('/api/telegram/webhook', async function(req, res) {
     query = ctx + '\n' + from + ' asks: ' + query;
   }
 
-  try {
-    var memory  = await core.loadMemory();
-    var histR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(10);
-    var history = (histR.data || []).reverse();
-    var msgs    = history.map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
-    msgs.push({ role: 'user', content: query });
-
-    var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 18000);
-    if (!reply) { res.sendStatus(200); return; }
-
-    await tgSend(chatId, reply, msg.message_id);
-    core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from).catch(function() {});
-    core.saveMessage(sid, 'assistant', reply, null, 'telegram', 'Valeran').catch(function() {});
-  } catch(e) { console.error('[TG]', e.message); }
-
+  // Respond to Telegram immediately (5s timeout requirement)
   res.sendStatus(200);
+  // Process AI in a separate long-running Vercel function
+  fetch(req.protocol + '://' + req.headers.host + '/api/process-tg', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.slice(0,8) : 'valeran' },
+    body: JSON.stringify({ query: query, from: from, chatId: chatId, msgId: msg.message_id, sid: sid })
+  }).catch(function(e) { console.error('[dispatch]', e.message); });
+});
+
+// ---- PROCESS-TG ----
+app.post('/api/process-tg', async function(req, res) {
+  res.sendStatus(200); // Acknowledge immediately
+  var { query, from, chatId, msgId, sid } = req.body || {};
+  if (!query || !chatId) return;
+  try {
+    var memory = await core.loadMemory();
+    var histR = await supabase.from('chat_messages').select('role,content').eq('session_id', sid).order('created_at', {ascending:false}).limit(10);
+    var history = (histR.data || []).reverse();
+    var msgs = history.map(function(m){ return {role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content}; });
+    msgs.push({role: 'user', content: from + ': ' + query});
+    var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 28000);
+    if (!reply) return;
+    reply = cleanTG(reply);
+    await tgSend(chatId, reply, msgId);
+    await supabase.from('chat_messages').insert([
+      {session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from},
+      {session_id: sid, role: 'assistant', content: reply, source: 'telegram', telegram_user: 'Valeran'}
+    ]);
+  } catch(e) { console.error('[process-tg]', e.message); }
 });
 
 // ---- CRON ----
