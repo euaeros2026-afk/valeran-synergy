@@ -578,29 +578,16 @@ app.post('/api/telegram/webhook', async function(req, res) {
   }
 
   try {
-    var memory  = await core.loadMemory();
-    var histR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(8);
-    var history = (histR.data || []).reverse();
-    await supabase.from('chat_messages').insert({session_id:sid,role:'user',content:'TRY_BLOCK_hist='+history.length+'_sid='+sid,source:'telegram',telegram_user:'TRACE0'});
-    supabase.from('chat_messages').insert({session_id:sid,role:'user',content:'TRACE2_hist_count='+history.length,source:'telegram',telegram_user:'TRACE'});
-    var msgs    = history.map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
-    msgs.push({ role: 'user', content: query });
-
-    // Save user message FIRST (before AI call so it's always recorded)
-    await supabase.from('chat_messages').insert({ session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from }).catch(function(){});
-
-    supabase.from('chat_messages').insert({session_id:sid,role:'user',content:'TRACE3_before_callAI_msgCount='+msgs.length,source:'telegram',telegram_user:'TRACE'});
-    var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 18000);
-    if (!reply) reply = 'Sorry, having trouble connecting. Please try again.';
-
-    reply = cleanTG(reply);
-    await tgSend(chatId, reply, msg.message_id);
-
-    // Save user + assistant messages
-    await supabase.from('chat_messages').insert([
-      { session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from },
-      { session_id: sid, role: 'assistant', content: reply, source: 'telegram', telegram_user: 'Valeran' }
-    ]);
+    var result = await core.processMessage({
+      text: query,
+      sessionId: sid,
+      partnerId: null,
+      senderName: from
+    });
+    if (result && result.reply) {
+      var tgReply = cleanTG(result.reply);
+      await tgSend(chatId, tgReply, msg.message_id);
+    }
   } catch(e) { console.error('[TG text]', e.message); }
   res.sendStatus(200);
 });
