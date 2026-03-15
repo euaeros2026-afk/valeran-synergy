@@ -144,7 +144,7 @@ async function processMessage(opts) {
   }
   extractEntities(text, partnerId, sessionId).catch(function() {});
   if (!triggered) return { responded: false, silent: true };
-  var memAndHistory = await Promise.all([loadMemory(), getChatHistory(sessionId)]);
+  var memAndHistory = await Promise.race([Promise.all([loadMemory(), getChatHistory(sessionId)]), new Promise(function(r){setTimeout(function(){r(['',[]]);},3000);})]);
   var memory = memAndHistory[0];
   var history = memAndHistory[1];
   var system = buildSystemPrompt() + memory;
