@@ -574,6 +574,11 @@ app.post('/api/telegram/webhook', async function(req, res) {
     query = ctx + '\n' + from + ' asks: ' + query;
   }
 
+  // Dedup: skip if we already have a message with this exact text+user combo in last 30s
+  var dedup = await supabase.from('chat_messages')
+    .select('id').eq('telegram_user', from).eq('content', from + ': ' + query)
+    .gte('created_at', new Date(Date.now()-30000).toISOString()).limit(1);
+  if (dedup.data && dedup.data.length > 0) { res.sendStatus(200); return; }
   // Respond to Telegram immediately (5s timeout requirement)
   res.sendStatus(200);
   // Process AI in a separate long-running Vercel function
