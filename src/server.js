@@ -593,21 +593,21 @@ app.post('/api/telegram/webhook', async function(req, res) {
     .select('id').eq('telegram_user', from).eq('content', from + ': ' + query)
     .gte('created_at', new Date(Date.now()-30000).toISOString()).limit(1);
   if (dedup.data && dedup.data.length > 0) { res.sendStatus(200); return; }
-  // Save user message immediately
-  await core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from);
-  // Load conversation history
-  var tgHistR = await supabase.from('chat_messages').select('role,content')
-    .eq('session_id', sid).neq('source', 'telegram_queue')
-    .order('created_at', { ascending: false }).limit(10);
+  // Save user message + load history in parallel  
+  var tgSys = core.getBaseSystem(null);
+  var [, tgHistR] = await Promise.all([
+    core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from),
+    supabase.from('chat_messages').select('role,content')
+      .eq('session_id', sid).neq('source', 'telegram_queue')
+      .order('created_at', { ascending: false }).limit(8)
+  ]);
   var tgHistory = (tgHistR.data || []).reverse();
   var tgMsgs = tgHistory.map(function(m) { return { role: m.role, content: m.content }; });
   tgMsgs.push({ role: 'user', content: from + ': ' + query });
-  // Call AI inline — must respond to Telegram within 5s total
-  // skipWebSearch=true for speed (web search adds 10-20s)
+  // Call AI inline — skipWebSearch=true keeps it fast (<3s)
   var tgReply = null;
   try {
-    var tgSys = core.getBaseSystem(null);
-    tgReply = await core.callAI(tgMsgs, tgSys, 600, 3800, true);
+    tgReply = await core.callAI(tgMsgs, tgSys, 500, 3000, true);
   } catch(e) { console.error('[TG AI]', e.message); }
   // Respond to Telegram — required within 5s
   res.sendStatus(200);
