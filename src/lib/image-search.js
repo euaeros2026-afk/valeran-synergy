@@ -4,7 +4,7 @@
 // Searches: Amazon DE, eMAG BG/RO, Alibaba, 1688, AliExpress
 
 const VISION_KEY = process.env.GOOGLE_API_KEY;
-const SCRAPER_KEY = process.env.SCRAPER_API_KEY;
+const SCRAPER_KEY = process.env.SCRAPERAPI_KEY;
 const SCRAPER_BASE = 'https://api.scraperapi.com';
 
 async function callVisionAPI(base64Image, mimeType) {
@@ -115,7 +115,7 @@ function parse1688(html, kw) {
   const out = [];
   // 1688 titles are in various span/div structures
   const re = /<div class="[^"]*title[^"]*"[^>]*>([^<]{5,100})<\/div>/g;
-  const priceRe = /class="[^"]*price[^"]*"[^>]*>\s*([\d.,￥]+)/g;
+  const priceRe = /class="[^"]*price[^"]*"[^>]*>\s*([\d.,ï¿¥]+)/g;
   const prices = []; let pm;
   while ((pm = priceRe.exec(html)) && prices.length < 10) prices.push(pm[1] + ' CNY');
   let m; let i = 0;
