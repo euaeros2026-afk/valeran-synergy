@@ -70,6 +70,7 @@ export default function Chat({ supabase, partner }) {
             if (!replaced) next = next.concat([Object.assign({}, m, { _mine: true })])
             return next
           }
+          if (m.role === 'assistant' && prev.some(function(x) { return x.role === 'assistant' && x.content === m.content && !x.id.startsWith('tmp-'); })) return prev;
           return prev.concat([m])
         })
       })
@@ -182,7 +183,7 @@ export default function Chat({ supabase, partner }) {
       if (isAI) {
         var ra = await fetch(API + '/api/chat/message', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text: full, session_id: 'team-chat' }) })
         var da = await ra.json()
-        if (da.reply) addAI(da.reply)
+        // reply arrives via realtime
       } else {
         await fetch(API + '/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text: full, session_id: 'team-chat' }) })
       }
