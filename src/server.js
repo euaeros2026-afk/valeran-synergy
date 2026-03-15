@@ -579,7 +579,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
     .select('id').eq('telegram_user', from).eq('content', from + ': ' + query)
     .gte('created_at', new Date(Date.now()-30000).toISOString()).limit(1);
   if (dedup.data && dedup.data.length > 0) { res.sendStatus(200); return; }
-  // Inline AI — optimised for <4s (within Telegram's 5s window)
+  // Get system prompt and history in parallel — fast
   var tgSys = core.getBaseSystem(null);
   var [, tgHistR] = await Promise.all([
     core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from),
@@ -587,24 +587,75 @@ app.post('/api/telegram/webhook', async function(req, res) {
       .eq('session_id', sid).eq('source', 'telegram')
       .order('created_at', { ascending: false }).limit(4)
   ]);
-  var tgMsgs = ((tgHistR.data || []).reverse()).map(function(m){ return {role:m.role,content:m.content}; });
+  var tgMsgs = ((tgHistR.data || []).reverse()).map(function(m){ return {role:m.role, content:m.content}; });
   tgMsgs.push({ role: 'user', content: from + ': ' + query });
+  // Call AI — 2500ms timeout so we always respond within Telegram's 5s window
   var tgReply = null;
   try { tgReply = await core.callAI(tgMsgs, tgSys, 400, 2500, true); }
-  catch(e) { console.error('[TG AI]', e.message); }
-  // Send to Telegram directly (bypass tgSend to avoid env var issues)
+  catch(e) { console.error('[TG]', e.message); }
+  // Send TG reply and save BEFORE responding (guarantees Vercel doesn't kill these)
   if (tgReply) {
     var tgClean = tgReply.replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n*/gm,'').replace(/^[A-Z]{2,3}:[^\n]*\n*/gm,'').trim();
-    var tgPayload = JSON.stringify({ chat_id: String(chatId), text: tgClean, reply_to_message_id: msg.message_id });
-    await fetch('https://api.telegram.org/bot8573733666:AAGCa6hAsFABaFgG0of6wd0mtL4nVL9jRm4/sendMessage', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: tgPayload
-    }).catch(function(e){ console.error('[tg direct]', e.message); });
-    core.saveMessage(sid, 'assistant', tgClean, null, 'telegram', 'Valeran').catch(function(){});
+    try { await tgSend(chatId, tgClean, msg.message_id); } catch(e){console.error('[tgSend]',e.message);}
+    core.saveMessage(sid,'assistant',tgClean,null,'telegram','Valeran').catch(function(){});
   }
+  // Respond to Telegram last (within 5s total - AI took ~2.5s, tgSend ~0.3s = ~2.8s total)
   res.sendStatus(200);
+});
+
+// ---- PROCESS-TG ----
+app.post('/api/process-tg', async function(req, res) {
+  var { query, from, chatId, msgId, sid } = req.body || {};
+  if (!query || !chatId) { res.sendStatus(200); return; }
+  try {
+    var memory = await core.loadMemory();
+    var histR = await supabase.from('chat_messages')
+      .select('role,content').eq('session_id', sid)
+      .order('created_at', { ascending: false }).limit(10);
+    var history = (histR.data || []).reverse();
+    var msgs = history.map(function(m) {
+      return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content };
+    });
+    msgs.push({ role: 'user', content: from + ': ' + query });
+    var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 4000);
+    if (reply) {
+      reply = cleanTG(reply);
+      await tgSend(chatId, reply, msg.message_id);
+      await supabase.from('chat_messages').insert([
+        { session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from },
+        { session_id: sid, role: 'assistant', content: reply, source: 'telegram', telegram_user: 'Valeran' }
+      ]);
+    }
+  } catch(e) { console.error('[TG]', e.message); }
+  res.sendStatus(200);
+});
+
+// ---- CRON ----
+cron.schedule('30 13 * * *', async function() {
+  var sid = await getActiveSessionId(); if (!sid) return;
+  var report = await core.generateEveningReport(sid, new Date().toISOString().split('T')[0]);
+  await tg.sendReportToTelegram(report);
+  scraper.enrichAllProducts(sid).catch(console.error);
+});
+cron.schedule('0 23 * * *', async function() {
+  var t = new Date(); t.setDate(t.getDate() + 1);
+  var d = t.toISOString().split('T')[0];
+  var sid = await getActiveSessionId(d); if (!sid) return;
+  await tg.sendReportToTelegram(await core.generateMorningReport(sid, d));
+});
+cron.schedule('0 14 * * *', async function() {
+  var sid = await getActiveSessionId(); if (!sid) return;
+  scraper.enrichAllProducts(sid).catch(console.error);
+});
+
+async function getActiveSessionId(date) {
+  var d = date || new Date().toISOString().split('T')[0];
+  var r = await supabase.from('fair_sessions').select('id').lte('start_date', d).gte('end_date', d).single();
+  return r.data && r.data.id || null;
+}
 
 
-// ---- TG TEST [v1773570177039] ----
+// ---- TG TEST ----
 app.get('/api/tg-test', async function(req, res) {
   try {
     var token = process.env.TELEGRAM_BOT_TOKEN || 'NOT SET';
