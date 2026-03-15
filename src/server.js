@@ -552,6 +552,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
   }
 
   // ---- TEXT ----
+  supabase.from('chat_messages').insert({session_id:'team-chat',role:'user',content:'TEXT_SECTION_ENTERED_'+Date.now(),source:'telegram',telegram_user:'TRACE0'}).catch(function(){});
   var text = (msg.text && msg.text.trim()) || '';
   if (!text) { res.sendStatus(200); return; }
 
@@ -559,6 +560,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
   var isPrefix  = /^(valeran|valera)[,\s!?.]/i.test(text) || /^\u0432\u0430\u043b\u0435\u0440\u0430[,\s!?.]/i.test(text);
   var isMention = text.indexOf('@ValeranSV_bot') > -1;
   var isReply = !!(msg.reply_to_message && msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
+  supabase.from('chat_messages').insert({session_id:'team-chat',role:'user',content:'TRACE_COND_prefix='+isPrefix+'_mention='+isMention+'_reply='+isReply,source:'telegram',telegram_user:'TRACE0'}).catch(function(){});
 
   if (!isPrefix && !isMention && !isReply) {
     core.saveMessage(sid, 'user', from + ': ' + text, null, 'telegram', from).catch(function() {});
