@@ -193,7 +193,7 @@ async function processMessage(opts) {
   var query = text.replace(/^(valeran|valera|\u0432\u0430\u043b\u0435\u0440\u0430\u043d|\u0432\u0430\u043b\u0435\u0440\u0430)[,\s!?]*/i, '').trim() || text;
   var msgs = history.map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
   msgs.push({ role: 'user', content: query });
-  var reply = await callAI(msgs, system, 700, 22000) || 'Sorry, having trouble connecting. Please try again.';
+  var reply = await callAI(msgs, _sys, 700, 22000) || 'Sorry, having trouble connecting. Please try again.';
   await saveMessage(sessionId, 'assistant', reply, null, 'web', null);
   return { responded: true, reply: reply };
 }
