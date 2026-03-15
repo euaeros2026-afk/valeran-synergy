@@ -593,22 +593,22 @@ app.post('/api/telegram/webhook', async function(req, res) {
     .select('id').eq('telegram_user', from).eq('content', from + ': ' + query)
     .gte('created_at', new Date(Date.now()-30000).toISOString()).limit(1);
   if (dedup.data && dedup.data.length > 0) { res.sendStatus(200); return; }
-  // Save user message + load history in parallel  
+  // Save user message + load history in parallel (optimised for <5s)
   var tgSys = core.getBaseSystem(null);
   var [, tgHistR] = await Promise.all([
     core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from),
     supabase.from('chat_messages').select('role,content')
-      .eq('session_id', sid).neq('source', 'telegram_queue')
-      .order('created_at', { ascending: false }).limit(8)
+      .eq('session_id', sid).eq('source', 'telegram')
+      .order('created_at', { ascending: false }).limit(4)
   ]);
   var tgHistory = (tgHistR.data || []).reverse();
   var tgMsgs = tgHistory.map(function(m) { return { role: m.role, content: m.content }; });
   tgMsgs.push({ role: 'user', content: from + ': ' + query });
-  // Call AI inline — skipWebSearch=true keeps it fast (<3s)
+  // Call AI inline — 2500ms timeout to stay well within Telegram's 5s window
   var tgReply = null;
   try {
-    tgReply = await core.callAI(tgMsgs, tgSys, 500, 3000, true);
-  } catch(e) { console.error('[TG AI]', e.message); }
+    tgReply = await core.callAI(tgMsgs, tgSys, 400, 2500, true);
+  } catch(e) { console.error('[TG AI]', e.message); }}
   // Respond to Telegram — required within 5s
   res.sendStatus(200);
   // Send reply and save (best-effort after response)
