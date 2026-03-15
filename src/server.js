@@ -61,7 +61,7 @@ app.post('/api/chat/message', requireAuth, async function(req, res) {
   if (!req.body.text) return res.status(400).json({ error: 'No text' });
   var sid = 'team-chat';
   try {
-    var result = await core.processMessage({ text: req.body.text, sessionId: sid, partnerId: req.partner && req.partner.id || null, senderName: senderName, userIp: req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : (req.ip || '') });
+    var result = await core.processMessage({ text: req.body.text, partnerId: req.partner && req.partner.id, sessionId: sid });
     res.json({ reply: result.responded ? result.reply : null, session_id: sid, responded: result.responded });
   } catch(e) { res.json({ reply: 'Error ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ try again.', session_id: sid }); }
 });
@@ -152,11 +152,11 @@ app.post('/api/image-search', requireAuth, upload.single('image'), async functio
     var b64 = req.file ? req.file.buffer.toString('base64') : null;
     var mime = req.file ? req.file.mimetype : 'image/jpeg';
     var keywords = (req.body && req.body.keywords) || '';
-    if (!b64 && !keywords) return res.status(400).json({ error: 'Provide image file or keywords' });
-    imgSearch.searchProduct(b64, mime, { keywords: keywords || undefined }).then(function(result) {
-      res.json({ success: true, result: result, summary: imgSearch.formatForAI(result) });
-    }).catch(function(e) { res.status(500).json({ error: e.message }); });
-  } catch(e) { console.error('[image-search]', e.message); res.status(500).json({ error: e.message }); }
+    if (!b64 && !keywords) return res.status(400).json({ error: 'Provide image or keywords' });
+    imgSearch.searchProduct(b64, mime, { keywords: keywords || undefined })
+      .then(function(result) { res.json({ success: true, result: result, summary: imgSearch.formatForAI(result) }); })
+      .catch(function(e) { res.status(500).json({ error: e.message }); });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/chat/photo', requireAuth, upload.single('photo'), async function(req, res) {
@@ -594,52 +594,40 @@ app.post('/api/telegram/webhook', async function(req, res) {
     .gte('created_at', new Date(Date.now()-30000).toISOString()).limit(1);
   if (dedup.data && dedup.data.length > 0) { res.sendStatus(200); return; }
   // Respond to Telegram immediately (5s timeout requirement)
-  // Respond to Telegram immediately (<5s requirement)
   res.sendStatus(200);
-  // Fire-and-forget to /api/process-tg (runs in separate Vercel invocation, full 60s timeout)
+  // Process AI in a separate long-running Vercel function
   fetch(req.protocol + '://' + req.headers.host + '/api/process-tg', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.slice(0,8) : 'valeran' },
     body: JSON.stringify({ query: query, from: from, chatId: chatId, msgId: msg.message_id, sid: sid })
   }).catch(function(e) { console.error('[dispatch]', e.message); });
 });
 
 // ---- PROCESS-TG ----
 app.post('/api/process-tg', async function(req, res) {
-  res.sendStatus(200); // respond immediately
-  var query  = req.body && req.body.query;
-  var from   = req.body && req.body.from;
-  var chatId = req.body && req.body.chatId;
-  var msgId  = req.body && req.body.msgId;
-  var sid    = (req.body && req.body.sid) || 'team-chat';
-  if (!query || !chatId) return;
+  var { query, from, chatId, msgId, sid } = req.body || {};
+  if (!query || !chatId) { res.sendStatus(200); return; }
   try {
-    // Build system prompt with location (default Sofia since TG users are the team)
-    var loc = await core.getLocationInfo('');
-    var sys = core.getBaseSystem(loc);
-    // Load conversation history
+    var memory = await core.loadMemory();
     var histR = await supabase.from('chat_messages')
       .select('role,content').eq('session_id', sid)
-      .neq('source','telegram_queue')
-      .order('created_at', { ascending: false }).limit(12);
+      .order('created_at', { ascending: false }).limit(10);
     var history = (histR.data || []).reverse();
-    var msgs = history.map(function(m) { return { role: m.role, content: m.content }; });
+    var msgs = history.map(function(m) {
+      return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content };
+    });
     msgs.push({ role: 'user', content: from + ': ' + query });
-    // Save user message first
-    await supabase.from('chat_messages').insert({
-      session_id: sid, role: 'user', content: from + ': ' + query,
-      source: 'telegram', telegram_user: from
-    });
-    // Call AI with web search enabled (60s timeout available here)
-    var reply = await core.callAI(msgs, sys, 800, 50000);
-    if (!reply) return;
-    var clean = reply.replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n*/gm,'').replace(/^[A-Z]{2,3}:[^\n]*\n*/gm,'').trim();
-    await tgSend(chatId, clean, msgId);
-    await supabase.from('chat_messages').insert({
-      session_id: sid, role: 'assistant', content: clean,
-      source: 'telegram', telegram_user: 'Valeran'
-    });
-  } catch(e) { console.error('[process-tg]', e.message); }
+    var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 4000);
+    if (reply) {
+      reply = cleanTG(reply);
+      await tgSend(chatId, reply, msg.message_id);
+      await supabase.from('chat_messages').insert([
+        { session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from },
+        { session_id: sid, role: 'assistant', content: reply, source: 'telegram', telegram_user: 'Valeran' }
+      ]);
+    }
+  } catch(e) { console.error('[TG]', e.message); }
+  res.sendStatus(200);
 });
 
 // ---- CRON ----
