@@ -580,7 +580,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
     .gte('created_at', new Date(Date.now()-30000).toISOString()).limit(1);
   if (dedup.data && dedup.data.length > 0) { res.sendStatus(200); return; }
   // Respond to Telegram immediately (5s timeout requirement)
-  var _sys = core.getBaseSystem ? core.getBaseSystem() : TG_SYSTEM;
+  var _sys = (core.buildSystemPrompt ? core.buildSystemPrompt() : (core.getBaseSystem ? core.getBaseSystem() : TG_SYSTEM));
   var _histR = await supabase.from('chat_messages').select('role,content').eq('session_id',sid).eq('source','telegram').order('created_at',{ascending:false}).limit(4);
   var _msgs = ((_histR.data||[]).reverse()).map(function(m){return{role:m.role,content:m.content};});
   _msgs.push({role:'user',content:from+': '+query});
