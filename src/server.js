@@ -552,15 +552,12 @@ app.post('/api/telegram/webhook', async function(req, res) {
   }
 
   // ---- TEXT ----
-  supabase.from('chat_messages').insert({session_id:'team-chat',role:'user',content:'TEXT_SECTION_ENTERED_'+Date.now(),source:'telegram',telegram_user:'TRACE0'}).catch(function(){});
   var text = (msg.text && msg.text.trim()) || '';
   if (!text) { res.sendStatus(200); return; }
 
   // Strict: must start with 'Valeran,' or 'Valera,' (with separator) Ã¢ÂÂ prevents matching 'Valentina' etc
   var isPrefix  = /^(valeran|valera)[,\s!?.]/i.test(text) || /^\u0432\u0430\u043b\u0435\u0440\u0430[,\s!?.]/i.test(text);
   var isMention = text.indexOf('@ValeranSV_bot') > -1;
-  var isReply = !!(msg.reply_to_message && msg.reply_to_message.from && msg.reply_to_message.from.is_bot);
-  supabase.from('chat_messages').insert({session_id:'team-chat',role:'user',content:'TRACE_COND_prefix='+isPrefix+'_mention='+isMention+'_reply='+isReply,source:'telegram',telegram_user:'TRACE0'}).catch(function(){});
 
   if (!isPrefix && !isMention && !isReply) {
     core.saveMessage(sid, 'user', from + ': ' + text, null, 'telegram', from).catch(function() {});
@@ -577,19 +574,22 @@ app.post('/api/telegram/webhook', async function(req, res) {
     query = ctx + '\n' + from + ' asks: ' + query;
   }
 
-  // Respond immediately so Telegram doesn't retry
+  try {
+    var memory  = await core.loadMemory();
+    var histR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(10);
+    var history = (histR.data || []).reverse();
+    var msgs    = history.map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
+    msgs.push({ role: 'user', content: query });
+
+    var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 18000);
+    if (!reply) { res.sendStatus(200); return; }
+
+    await tgSend(chatId, reply, msg.message_id);
+    core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from).catch(function() {});
+    core.saveMessage(sid, 'assistant', reply, null, 'telegram', 'Valeran').catch(function() {});
+  } catch(e) { console.error('[TG]', e.message); }
+
   res.sendStatus(200);
-  // Run AI + saves as a background promise
-  core.processMessage({
-    text: query,
-    sessionId: sid,
-    partnerId: null,
-    senderName: from
-  }).then(function(result) {
-    if (result && result.reply) {
-      tgSend(chatId, cleanTG(result.reply), msg.message_id).catch(function(e){ console.error('[TG send]', e.message); });
-    }
-  }).catch(function(e) { console.error('[TG text]', e.message); });
 });
 
 // ---- CRON ----
