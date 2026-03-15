@@ -4,118 +4,40 @@ var supabase = supabaseJs.createClient(process.env.SUPABASE_URL, process.env.SUP
 var ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 var MODEL = 'claude-haiku-4-5-20251001';
 
-function getBaseSystem(locationInfo) {
-  // locationInfo: { city, country, timezone, timeStr } — passed in from caller
-  var now = new Date();
-  var days = Math.max(0, Math.round((new Date('2026-04-15T00:00:00+08:00') - now) / 86400000));
-  var timeStr = (locationInfo && locationInfo.timeStr) || (function() {
-    var cn = new Date(now.getTime() + 8*3600000);
-    return cn.toISOString().replace('T',' ').slice(0,16) + ' UTC+8 (China time)';
-  })();
-  var location = (locationInfo && locationInfo.city) ? locationInfo.city + ', ' + locationInfo.country : 'Unknown';
-  return 'You are Valeran, AI assistant for Synergy Ventures at Canton Fair 2026 in Guangzhou. ' +
-    'Team: Alexander (EN/owner), Ina (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi (BG/remote). ' +
-    'Canton Fair: Phase 1 Apr 15-19 (electronics), Phase 2 Apr 23-27 (home goods), Phase 3 May 1-5 (fashion). Guangzhou Pazhou Complex. April: 22-28C humid. ' +
-    'Margin target >35%. Landed = exworks x1.12freight x1.035duty + 15pct fees + 10pct ads. ' +
-    'Sourcing: 1688 cheapest, Alibaba for export, AliPrice for reverse image. EU: Amazon DE/FR/UK, eMAG BG/RO. ' +
-    'CE for electronics/toys. RoHS. REACH for chemicals. Budget 500-5000 EUR per product. ' +
-    'LANGUAGE RULE: detect input language, reply ONLY in same language. BG=BG, RU=RU, EN=EN. Never mix. Never prefix with **EN**, EN:, BG:, RU: etc. ' +
-    'CONTEXT: [Context: ...] = the replied-to message. Use it fully. ' +
-    'USER LOCATION: ' + location + '. LOCAL DATE/TIME: ' + timeStr + '. ' +
-    'DATE RULE: When asked about date or time, give the LOCAL time for the user location. If location unknown, give Sofia/Bulgaria time (UTC+2 or UTC+3 in summer) since the base team is in Bulgaria. Only give China time if user asks specifically or is in China. ' +
-    'Days until Canton Fair Phase 1 (Apr 15 2026): ' + days + '. ' +
-    'WEB SEARCH: You have a live web_search tool available. USE IT for: visa rules, border policies, current prices, recent regulations, news. Never rely on training data for time-sensitive facts — always search first. ' +
-    'Style: direct, no fluff. 2-3 sentences in Telegram. Full detail on web when asked.';
-}
+var BASE_SYSTEM = 'You are Valeran, the AI assistant for Synergy Ventures LLC-FZ at Canton Fair 2026 in Guangzhou, China. ' +
+  'Company: Synergy Ventures sources products from Chinese manufacturers and sells in the EU via Shopify + Instagram/Facebook. Goal: max ROI. Any category, any product. ' +
+  'Team: Alexander Oslan (owner, English), Ina Kanaplianikava (partner, Russian, at fair), Konstantin Khoch (partner, Russian, at fair), Konstantin Ganev (partner, Bulgarian, at fair), Slavi Mikinski (observer, Bulgarian, remote). ' +
+  'Canton Fair 2026: Phase 1 Apr 15-19 (electronics, hardware, lighting), Phase 2 Apr 23-27 (home goods, furniture, gifts), Phase 3 May 1-5 (fashion, textiles, toys). Location: Pazhou Complex Guangzhou. April weather: 22-28C humid rain - bring umbrella. ' +
+  'Margin formula: buy_usd x 0.92 = eur, x 1.12 freight, x 1.035 duty = landed. Net margin = (sell - landed - 15pct_fees - 10pct_ads) / sell. Target >35%. ' +
+  'Sourcing: 1688 (cheapest), Alibaba (export), Taobao (CN retail), AliPrice (reverse image). EU: Amazon DE/UK/FR, eMAG Bulgaria/Romania. ' +
+  'Compliance: CE (electronics/toys), RoHS (electronics), REACH (chemicals). Cost 500-5000 EUR per product. ' +
+  'LANGUAGE RULE - ABSOLUTE: detect input language and reply in EXACT same language. Bulgarian in = Bulgarian out. Russian in = Russian out. English in = English out. NEVER mix. ' +'NEVER prefix your reply with a language label. Forbidden prefixes: **EN**, **BG**, **RU**, EN:, BG:, RU:, English:, Russian:, Bulgarian: — these must NEVER appear. Reply directly in the correct language â just reply directly in the correct language. ' +
+  'CONTEXT RULE: When message starts with [Context: ...] that is the replied-to message. USE IT FULLY. Never say you cannot see previous messages. ' +
+  'TESTING MODE: Currently March 2026, testing before Canton Fair. Learn from all corrections. ' +
+  'Personality: direct, confident, smart, practical. Max 200 words in Telegram unless full report. Can tell jokes.';
 
-async function getLocationInfo(userIp) {
-  try {
-    var url = 'https://ipapi.co/' + (userIp || '') + '/json/';
-    var r = await fetch(url, { signal: AbortSignal.timeout(3000) });
-    if (!r.ok) return null;
-    var g = await r.json();
-    if (!g.timezone || !g.city) return null;
-    var timeStr = new Date().toLocaleString('en-GB', {
-      timeZone: g.timezone, weekday: 'short', day: 'numeric',
-      month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-    }) + ' (' + g.timezone + ')';
-    return { city: g.city, country: g.country_name, timezone: g.timezone, timeStr: timeStr };
-  } catch(e) {
-    // Default to Sofia, Bulgaria (where the team is based)
-    var sofiaTime = new Date().toLocaleString('en-GB', {
-      timeZone: 'Europe/Sofia', weekday: 'short', day: 'numeric',
-      month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-    }) + ' (Europe/Sofia)';
-    return { city: 'Sofia', country: 'Bulgaria', timezone: 'Europe/Sofia', timeStr: sofiaTime };
-  }
-}
-
-
-async function callAI(messages, system, maxTokens, timeoutMs, skipWebSearch) {
-  var sys = (typeof system === 'string') ? system : '';
+async function callAI(messages, system, maxTokens, timeoutMs) {
+  maxTokens = maxTokens || 600;
+  timeoutMs = timeoutMs || 22000;
+  system = system || BASE_SYSTEM;
   var ctrl = new AbortController();
-  var timer = setTimeout(function() { ctrl.abort(); }, timeoutMs || 55000);
-
-  async function doCall(withTools) {
-    var body = {
-      model: 'claude-sonnet-4-6',
-      max_tokens: maxTokens || 1000,
-      system: sys,
-      messages: messages
-    };
-    if (withTools) {
-      body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
-    }
-    var headers = {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
-    };
-    if (withTools) {
-      headers['anthropic-beta'] = 'web-search-2025-03-05';
-    }
-    var r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST', headers: headers,
-      body: JSON.stringify(body), signal: ctrl.signal
-    });
-    if (!r.ok) {
-      var errBody = await r.json().catch(function(){return {};});
-      console.error('[callAI]', r.status, JSON.stringify(errBody).slice(0,150));
-      return null;
-    }
-    var data = await r.json();
-    var text = '';
-    if (data.content) {
-      for (var i = 0; i < data.content.length; i++) {
-        if (data.content[i].type === 'text') text += data.content[i].text;
-      }
-    }
-    return text.trim() || null;
-  }
-
+  var timer = setTimeout(function() { ctrl.abort(); }, timeoutMs);
   try {
-    // Try with web search first (unless explicitly skipped)
-    var reply = null;
-    if (!skipWebSearch) {
-      reply = await doCall(true);
-    }
-    // Fall back to no-tool call if web search failed or was skipped
-    if (!reply) {
-      reply = await doCall(false);
-    }
+    var r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, system: system, messages: messages }),
+      signal: ctrl.signal
+    });
     clearTimeout(timer);
-    return reply;
+    var d = await r.json();
+    if (d.error) { console.error('[AI]', d.error.message); return null; }
+    return d.content && d.content[0] && d.content[0].text || null;
   } catch(e) {
     clearTimeout(timer);
-    console.error('[callAI]', e.message);
-    // Last resort: try without tools
-    try {
-      var fallback = await doCall(false);
-      return fallback;
-    } catch(e2) {
-      console.error('[callAI fallback]', e2.message);
-      return null;
-    }
+    if (e.name === 'AbortError') { console.error('[AI] timeout'); return null; }
+    console.error('[AI]', e.message);
+    return null;
   }
 }
 
@@ -152,6 +74,7 @@ async function saveCorrection(content, partnerId, subject) {
 }
 
 async function saveMessage(sessionId, role, content, partnerId, source, telegramUser) {
+  // Strip language labels from assistant messages before saving
   if (role === 'assistant' && content) {
     content = content
       .replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n*/gm, '')
@@ -162,13 +85,13 @@ async function saveMessage(sessionId, role, content, partnerId, source, telegram
     await supabase.from('chat_messages').insert({
       session_id: sessionId || 'team-chat',
       partner_id: partnerId || null,
-      role: role, content: content,
+      role: role,
+      content: content,
       source: source || 'web',
       telegram_user: telegramUser || null
     });
   } catch(e) { console.error('[save]', e.message); }
 }
-
 async function getChatHistory(sessionId) {
   var sid = sessionId || 'team-chat';
   try {
@@ -211,12 +134,11 @@ async function processMessage(opts) {
   var memAndHistory = await Promise.all([loadMemory(), getChatHistory(sessionId)]);
   var memory = memAndHistory[0];
   var history = memAndHistory[1];
-  var _loc = await getLocationInfo(opts && opts.userIp);
-  var _sys = getBaseSystem(_loc);
+  var system = BASE_SYSTEM + memory;
   var query = text.replace(/^(valeran|valera|\u0432\u0430\u043b\u0435\u0440\u0430\u043d|\u0432\u0430\u043b\u0435\u0440\u0430)[,\s!?]*/i, '').trim() || text;
   var msgs = history.map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
   msgs.push({ role: 'user', content: query });
-  var reply = await callAI(msgs, _sys, 700, 22000) || 'Sorry, having trouble connecting. Please try again.';
+  var reply = await callAI(msgs, system, 700, 22000) || 'Sorry, having trouble connecting. Please try again.';
   await saveMessage(sessionId, 'assistant', reply, null, 'web', null);
   return { responded: true, reply: reply };
 }
@@ -253,7 +175,7 @@ async function analyseCatalogue(content, supplierId, sessionId, uploadId) {
       await supabase.from('products').insert({ product_name: p.name, notes: [p.description, p.materials, p.notes].filter(Boolean).join(' | '), buy_price_usd: p.price_usd || null, supplier_id: supplierId || null, fair_session_id: null, category: 'Catalogue Import' }).catch(function() {});
     }
   }
-  var summary = await callAI([{ role: 'user', content: 'Summarise this supplier catalogue for a Telegram group. Format: *SUPPLIER OVERVIEW* line, then • bullet points for top products with price ranges and MOQ where available, then • key advantages. Use *Bold* for section titles, • for bullets. Max 200 words. No ## headers, no language prefix labels. Content: ' + content.slice(0, 2000) }], _sys, 200, 12000) || 'Catalogue analysed.';
+  var summary = await callAI([{ role: 'user', content: 'Summarise this supplier catalogue for a Telegram group. Format: *SUPPLIER OVERVIEW* line, then • bullet points for top products with price ranges and MOQ where available, then • key advantages. Use *Bold* for section titles, • for bullets. Max 200 words. No ## headers, no language prefix labels. Content: ' + content.slice(0, 2000) }], BASE_SYSTEM, 200, 12000) || 'Catalogue analysed.';
   if (uploadId) {
     await supabase.from('catalogue_uploads').update({ analysis_status: 'done', products_extracted: products.length, summary: summary.slice(0,2000), supplier_id: supplierId || null }).eq('id', uploadId);
   }
@@ -262,7 +184,7 @@ async function analyseCatalogue(content, supplierId, sessionId, uploadId) {
 
 async function generateEveningReport(sessionId, date) {
   var memory = await loadMemory();
-  var system = _sys + memory;
+  var system = BASE_SYSTEM + memory;
   var prods = await supabase.from('products').select('name, buy_price_usd, sell_price_eur, notes, category').eq('session_id', sessionId).gte('created_at', date).limit(15);
   var supps = await supabase.from('suppliers').select('name, hall, booth_number').eq('session_id', sessionId).gte('created_at', date).limit(10);
   var meets = await supabase.from('meetings').select('scheduled_at, notes').gte('scheduled_at', date).limit(8);
@@ -276,7 +198,7 @@ async function generateEveningReport(sessionId, date) {
 
 async function generateMorningReport(sessionId, date) {
   var memory = await loadMemory();
-  var system = _sys + memory;
+  var system = BASE_SYSTEM + memory;
   var prods = await supabase.from('products').select('name, buy_price_usd, notes, category').eq('session_id', sessionId).order('created_at', { ascending: false }).limit(10);
   var meets = await supabase.from('meetings').select('scheduled_at, notes').gte('scheduled_at', date).limit(8);
   var research = await supabase.from('product_research').select('product_name, platform, price_eur, rating').order('created_at', { ascending: false }).limit(8);
@@ -289,8 +211,6 @@ async function generateMorningReport(sessionId, date) {
 
 module.exports = {
   processMessage: processMessage,
-  getBaseSystem: getBaseSystem,
-  getChatHistory: getChatHistory,
   generateEveningReport: generateEveningReport,
   generateMorningReport: generateMorningReport,
   isValeranCalled: isValeranCalled,
