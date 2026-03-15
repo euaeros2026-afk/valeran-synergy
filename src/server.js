@@ -593,14 +593,14 @@ app.post('/api/telegram/webhook', async function(req, res) {
   var tgReply = null;
   try { tgReply = await core.callAI(tgMsgs, tgSys, 400, 2500, true); }
   catch(e) { console.error('[TG]', e.message); }
-  // Respond to Telegram (MUST happen before 5s)
-  res.sendStatus(200);
-  // After response: send TG message and save (best-effort)
+  // Send TG reply and save BEFORE responding (guarantees Vercel doesn't kill these)
   if (tgReply) {
     var tgClean = tgReply.replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n*/gm,'').replace(/^[A-Z]{2,3}:[^\n]*\n*/gm,'').trim();
-    tgSend(chatId, tgClean, msg.message_id).catch(function(e){console.error('[tgSend]',e.message);});
-    core.saveMessage(sid,'assistant',tgClean,null,'telegram','Valeran').catch(function(e){console.error('[save]',e.message);});
+    try { await tgSend(chatId, tgClean, msg.message_id); } catch(e){console.error('[tgSend]',e.message);}
+    core.saveMessage(sid,'assistant',tgClean,null,'telegram','Valeran').catch(function(){});
   }
+  // Respond to Telegram last (within 5s total - AI took ~2.5s, tgSend ~0.3s = ~2.8s total)
+  res.sendStatus(200);
 });
 
 // ---- PROCESS-TG ----
