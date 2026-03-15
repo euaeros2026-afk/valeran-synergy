@@ -585,14 +585,18 @@ app.post('/api/telegram/webhook', async function(req, res) {
     await supabase.from('chat_messages').insert({ session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from }).catch(function(){});
 
     var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 18000);
-    if (!reply) reply = '⚠️ Sorry, I had trouble responding. Please try again.';
+    if (!reply) reply = 'Sorry, having trouble connecting. Please try again.';
 
     reply = cleanTG(reply);
-    await tgSend(chatId, reply, msg.message_id).catch(function() { return tgSend(chatId, reply, null); });
+    await tgSend(chatId, reply, msg.message_id);
 
-    // Save assistant reply
-    await supabase.from('chat_messages').insert({ session_id: sid, role: 'assistant', content: reply, source: 'telegram', telegram_user: 'Valeran' }).catch(function(){});
-  } catch(e) { console.error('[TG]', e.message); }res.sendStatus(200);
+    // Save user + assistant messages
+    await supabase.from('chat_messages').insert([
+      { session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from },
+      { session_id: sid, role: 'assistant', content: reply, source: 'telegram', telegram_user: 'Valeran' }
+    ]);
+  } catch(e) { console.error('[TG text]', e.message); }
+  res.sendStatus(200);
 });
 
 // ---- CRON ----
