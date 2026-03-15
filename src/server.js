@@ -595,19 +595,24 @@ app.post('/api/process-tg', async function(req, res) {
   if (!query || !chatId) { res.sendStatus(200); return; }
   try {
     var memory = await core.loadMemory();
-    var histR = await supabase.from('chat_messages').select('role,content').eq('session_id', sid).order('created_at', {ascending:false}).limit(10);
+    var histR = await supabase.from('chat_messages')
+      .select('role,content').eq('session_id', sid)
+      .order('created_at', { ascending: false }).limit(10);
     var history = (histR.data || []).reverse();
-    var msgs = history.map(function(m){ return {role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content}; });
-    msgs.push({role: 'user', content: from + ': ' + query});
-    var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 28000);
-    if (!reply) return;
-    reply = cleanTG(reply);
-    await tgSend(chatId, reply, msgId);
-    await supabase.from('chat_messages').insert([
-      {session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from},
-      {session_id: sid, role: 'assistant', content: reply, source: 'telegram', telegram_user: 'Valeran'}
-    ]);
-  } catch(e) { console.error('[process-tg]', e.message); }
+    var msgs = history.map(function(m) {
+      return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content };
+    });
+    msgs.push({ role: 'user', content: from + ': ' + query });
+    var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 4000);
+    if (reply) {
+      reply = cleanTG(reply);
+      await tgSend(chatId, reply, msg.message_id);
+      await supabase.from('chat_messages').insert([
+        { session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from },
+        { session_id: sid, role: 'assistant', content: reply, source: 'telegram', telegram_user: 'Valeran' }
+      ]);
+    }
+  } catch(e) { console.error('[TG]', e.message); }
   res.sendStatus(200);
 });
 
