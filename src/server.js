@@ -3,7 +3,6 @@ require('dotenv').config();
 var express    = require('express');
 var cors       = require('cors');
 var multer     = require('multer');
-var cron       = require('node-cron');
 var supabaseJs = require('@supabase/supabase-js');
 var core       = require('./lib/valeran-core');
 var tg         = require('./lib/telegram-bot');
@@ -656,23 +655,28 @@ app.post('/api/process-tg', async function(req, res) {
   res.sendStatus(200);
 });
 
-// ---- CRON ----
-cron.schedule('30 13 * * *', async function() {
-  var sid = await getActiveSessionId(); if (!sid) return;
-  var report = await core.generateEveningReport(sid, new Date().toISOString().split('T')[0]);
-  await tg.sendReportToTelegram(report);
-  scraper.enrichAllProducts(sid).catch(console.error);
+// ---- CRON (called by Vercel cron job at /api/cron daily at 06:00 UTC) ----
+app.get('/api/cron', async function(req, res) {
+  res.sendStatus(200); // respond immediately
+  try {
+    var now = new Date();
+    var hourUTC = now.getUTCHours();
+    var sid = await getActiveSessionId(now.toISOString().slice(0,10)) || 'team-chat';
+    var d = now.toISOString().slice(0,10);
+    // Morning briefing (06:00 UTC = 14:00 China)
+    if (hourUTC >= 5 && hourUTC <= 7) {
+      var report = await core.generateMorningReport(sid, d);
+      if (report) await tg.sendReportToTelegram(report).catch(console.error);
+    }
+    // Evening report (13:00 UTC = 21:00 China)
+    if (hourUTC >= 12 && hourUTC <= 14) {
+      var evening = await core.generateEveningReport(sid, d);
+      if (evening) await tg.sendReportToTelegram(evening).catch(console.error);
+      scraper.enrichAllProducts(sid).catch(console.error);
+    }
+  } catch(e) { console.error('[cron]', e.message); }
 });
-cron.schedule('0 23 * * *', async function() {
-  var t = new Date(); t.setDate(t.getDate() + 1);
-  var d = t.toISOString().split('T')[0];
-  var sid = await getActiveSessionId(d); if (!sid) return;
-  await tg.sendReportToTelegram(await core.generateMorningReport(sid, d));
-});
-cron.schedule('0 14 * * *', async function() {
-  var sid = await getActiveSessionId(); if (!sid) return;
-  scraper.enrichAllProducts(sid).catch(console.error);
-});
+
 
 async function getActiveSessionId(date) {
   var d = date || new Date().toISOString().split('T')[0];
