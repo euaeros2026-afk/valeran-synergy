@@ -32,7 +32,10 @@ app.get('/api/health', function(req, res) { res.json({ status: 'ok', valeran: 'o
 
 app.get('/api/debug/ai', async function(req, res) {
   try {
-    var r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 20, messages: [{ role: 'user', content: 'Say ONLINE' }] }) });
+
+    // Process pending TG messages
+    await fetch(req.protocol+'://'+req.headers.host+'/api/tg-process',{method:'POST'});
+        var r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 20, messages: [{ role: 'user', content: 'Say ONLINE' }] }) });
     var d = await r.json();
     res.json({ status: r.status, reply: d.content && d.content[0] && d.content[0].text });
   } catch(e) { res.json({ error: e.message }); }
@@ -594,26 +597,64 @@ app.post('/api/process-tg', async function(req, res) {
   var { query, from, chatId, msgId, sid } = req.body || {};
   if (!query || !chatId) { res.sendStatus(200); return; }
   try {
-    var memory = await core.loadMemory();
-    var histR = await supabase.from('chat_messages')
-      .select('role,content').eq('session_id', sid)
-      .order('created_at', { ascending: false }).limit(10);
-    var history = (histR.data || []).reverse();
-    var msgs = history.map(function(m) {
-      return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content };
+    // Save user message immediately — fast, no AI needed yet
+    await supabase.from('chat_messages').insert({
+      session_id: sid, role: 'user',
+      content: from + ': ' + query,
+      source: 'telegram', telegram_user: from
     });
-    msgs.push({ role: 'user', content: from + ': ' + query });
-    var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 4000);
-    if (reply) {
-      reply = cleanTG(reply);
-      await tgSend(chatId, reply, msg.message_id);
-      await supabase.from('chat_messages').insert([
-        { session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from },
-        { session_id: sid, role: 'assistant', content: reply, source: 'telegram', telegram_user: 'Valeran' }
-      ]);
-    }
-  } catch(e) { console.error('[TG]', e.message); }
+    // Store context for cron processing
+    await supabase.from('chat_messages').insert({
+      session_id: sid, role: 'user',
+      content: '__TG_PENDING__:' + chatId + ':' + msg.message_id,
+      source: 'telegram_queue', telegram_user: from
+    });
+  } catch(e) { console.error('[TG save]', e.message); }
   res.sendStatus(200);
+});
+
+// ---- TG-QUEUE-PROCESSOR ----
+app.post('/api/tg-process', async function(req, res) {
+  res.sendStatus(200);
+  try {
+    // Find pending TG messages (queued but not yet answered by AI)
+    var pending = await supabase.from('chat_messages')
+      .select('id,session_id,telegram_user,content,created_at')
+      .eq('source', 'telegram_queue')
+      .order('created_at', { ascending: true })
+      .limit(5);
+    if (!pending.data || !pending.data.length) return;
+    for (var pq of pending.data) {
+      var parts = pq.content.replace('__TG_PENDING__:', '').split(':');
+      var chatId = parts[0], msgId = parts[1];
+      var sid = pq.session_id, from = pq.telegram_user;
+      // Delete queue entry first (prevent double-processing)
+      await supabase.from('chat_messages').delete().eq('id', pq.id);
+      // Get the user's actual message
+      var userMsgR = await supabase.from('chat_messages')
+        .select('content').eq('session_id', sid).eq('source', 'telegram')
+        .eq('telegram_user', from).eq('role', 'user')
+        .order('created_at', { ascending: false }).limit(1);
+      var userMsg = userMsgR.data && userMsgR.data[0] ? userMsgR.data[0].content : '';
+      var query = userMsg.replace(from + ': ', '');
+      if (!query) continue;
+      // Generate AI reply
+      var memory = await core.loadMemory();
+      var histR = await supabase.from('chat_messages').select('role,content')
+        .eq('session_id', sid).neq('source', 'telegram_queue')
+        .order('created_at', { ascending: false }).limit(10);
+      var history = (histR.data || []).reverse();
+      var msgs = history.map(function(m){ return {role: m.role==='assistant'?'assistant':'user', content: m.content}; });
+      var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 25000);
+      if (!reply) continue;
+      reply = cleanTG(reply);
+      await tgSend(chatId, reply, msgId);
+      await supabase.from('chat_messages').insert({
+        session_id: sid, role: 'assistant', content: reply,
+        source: 'telegram', telegram_user: 'Valeran'
+      });
+    }
+  } catch(e) { console.error('[tg-process]', e.message); }
 });
 
 // ---- CRON ----
