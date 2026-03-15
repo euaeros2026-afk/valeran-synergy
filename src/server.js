@@ -593,60 +593,46 @@ app.post('/api/telegram/webhook', async function(req, res) {
     .select('id').eq('telegram_user', from).eq('content', from + ': ' + query)
     .gte('created_at', new Date(Date.now()-30000).toISOString()).limit(1);
   if (dedup.data && dedup.data.length > 0) { res.sendStatus(200); return; }
-  // Save user message + load history in parallel (optimised for <5s)
-  var tgSys = core.getBaseSystem(null);
-  var [, tgHistR] = await Promise.all([
-    core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from),
-    supabase.from('chat_messages').select('role,content')
-      .eq('session_id', sid).eq('source', 'telegram')
-      .order('created_at', { ascending: false }).limit(4)
-  ]);
-  var tgHistory = (tgHistR.data || []).reverse();
-  var tgMsgs = tgHistory.map(function(m) { return { role: m.role, content: m.content }; });
-  tgMsgs.push({ role: 'user', content: from + ': ' + query });
-  // Call AI inline — 2500ms timeout to stay well within Telegram's 5s window
-  var tgReply = null;
-  try {
-    tgReply = await core.callAI(tgMsgs, tgSys, 400, 2500, true);
-  } catch(e) { console.error('[TG AI]', e.message); }}
-  // Respond to Telegram — required within 5s
+  // Respond to Telegram IMMEDIATELY (must be <5s or Telegram times out)
   res.sendStatus(200);
-  // Send reply and save (best-effort after response)
-  if (tgReply) {
-    var tgClean = (function(s) {
-      if (!s) return s;
-      return s.replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n*/gm, '').replace(/^[A-Z]{2,3}:[^\n]*\n*/gm, '').trim();
-    })(tgReply);
-    tgSend(chatId, tgClean, msg.message_id).catch(function(e) { console.error('[tgSend]', e.message); });
-    core.saveMessage(sid, 'assistant', tgClean, null, 'telegram', 'Valeran').catch(function(e) { console.error('[save]', e.message); });
-  }
+  // Save user message and dispatch to /api/process-tg (new Vercel invocation = full 60s)
+  core.saveMessage(sid, 'user', from + ': ' + query, null, 'telegram', from).catch(function(e){});
+  fetch('https://' + req.headers.host + '/api/process-tg', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: query, from: from, chatId: chatId, msgId: msg.message_id, sid: sid })
+  }).catch(function(e){ console.error('[dispatch]', e.message); });
 });
 
-// ---- PROCESS-TG ----
+// ---- PROCESS-TG ---- (called async from webhook, full 60s timeout)
 app.post('/api/process-tg', async function(req, res) {
-  var { query, from, chatId, msgId, sid } = req.body || {};
-  if (!query || !chatId) { res.sendStatus(200); return; }
+  res.sendStatus(200); // respond immediately
+  var query  = req.body && req.body.query;
+  var from   = req.body && req.body.from;
+  var chatId = req.body && req.body.chatId;
+  var msgId  = req.body && req.body.msgId;
+  var sid    = (req.body && req.body.sid) || 'team-chat';
+  if (!query || !chatId) return;
   try {
-    var memory = await core.loadMemory();
+    // Build system prompt (sync, defaults to Sofia time)
+    var tgSys = core.getBaseSystem(null);
+    // Load last 4 telegram messages for context
     var histR = await supabase.from('chat_messages')
-      .select('role,content').eq('session_id', sid)
-      .order('created_at', { ascending: false }).limit(10);
+      .select('role,content').eq('session_id', sid).eq('source', 'telegram')
+      .order('created_at', { ascending: false }).limit(4);
     var history = (histR.data || []).reverse();
-    var msgs = history.map(function(m) {
-      return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content };
-    });
+    var msgs = history.map(function(m) { return { role: m.role, content: m.content }; });
     msgs.push({ role: 'user', content: from + ': ' + query });
-    var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 4000);
-    if (reply) {
-      reply = cleanTG(reply);
-      await tgSend(chatId, reply, msg.message_id);
-      await supabase.from('chat_messages').insert([
-        { session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from },
-        { session_id: sid, role: 'assistant', content: reply, source: 'telegram', telegram_user: 'Valeran' }
-      ]);
-    }
-  } catch(e) { console.error('[TG]', e.message); }
-  res.sendStatus(200);
+    // Call AI with web search disabled for speed (30s timeout)
+    var reply = await core.callAI(msgs, tgSys, 500, 30000, true);
+    if (!reply) return;
+    var clean = reply
+      .replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n*/gm, '')
+      .replace(/^[A-Z]{2,3}:[^\n]*\n*/gm, '')
+      .trim();
+    await tgSend(chatId, clean, msgId);
+    await core.saveMessage(sid, 'assistant', clean, null, 'telegram', 'Valeran');
+  } catch(e) { console.error('[process-tg]', e.message); }
 });
 
 // ---- CRON ----
