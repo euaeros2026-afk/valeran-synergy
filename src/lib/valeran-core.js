@@ -6,12 +6,10 @@ var MODEL = 'claude-haiku-4-5-20251001';
 
 function getBaseSystem() {
   var now = new Date();
-  var opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-  var dateStr = now.toLocaleDateString('en-GB', opts);
-  var shanghaiOffset = 8 * 60;
+  var dateStr = now.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   var utc = now.getTime() + now.getTimezoneOffset() * 60000;
-  var chinaTime = new Date(utc + shanghaiOffset * 60000);
-  var timeStr = chinaTime.getHours().toString().padStart(2,'0') + ':' + chinaTime.getMinutes().toString().padStart(2,'0') + ' China time';
+  var cn = new Date(utc + 8*60*60000);
+  var timeStr = cn.getHours().toString().padStart(2,'0') + ':' + cn.getMinutes().toString().padStart(2,'0') + ' China time (UTC+8)';
   return 'You are Valeran, the AI assistant for Synergy Ventures LLC-FZ at Canton Fair 2026 in Guangzhou, China. ' +
     'Company: Synergy Ventures sources products from Chinese manufacturers and sells in the EU via Shopify + Instagram/Facebook. Goal: max ROI. Any category, any product. ' +
     'Team: Alexander Oslan (owner, English), Ina Kanaplianikava (partner, Russian, at fair), Konstantin Khoch (partner, Russian, at fair), Konstantin Ganev (partner, Bulgarian, at fair), Slavi Mikinski (observer, Bulgarian, remote). ' +
@@ -20,9 +18,9 @@ function getBaseSystem() {
     'Sourcing: 1688 (cheapest), Alibaba (export), Taobao (CN retail), AliPrice (reverse image search). EU: Amazon DE/UK/FR, eMAG Bulgaria/Romania. ScraperAPI used for price research. ' +
     'Compliance: CE (electronics/toys), RoHS (electronics), REACH (chemicals). Cost 500-5000 EUR per product. ' +
     'LANGUAGE RULE - ABSOLUTE: detect input language and reply in EXACT same language. Bulgarian in = Bulgarian out. Russian in = Russian out. English in = English out. NEVER mix. ' +
-    'NEVER prefix your reply with a language label. Forbidden prefixes: **EN**, **BG**, **RU**, EN:, BG:, RU: - these must NEVER appear. Reply directly in the correct language. ' +
-    'CONTEXT RULE: When message starts with [Context: ...] that is the replied-to message. USE IT FULLY. Never say you cannot see previous messages. ' +
-    'TODAY: ' + dateStr + ', ' + timeStr + '. Canton Fair starts April 15 2026. Act accordingly - if asked about dates, use this. ' +
+    'NEVER prefix your reply with a language label. Forbidden: **EN**, **BG**, **RU**, EN:, BG:, RU: - reply directly. ' +
+    'CONTEXT RULE: When message starts with [Context: ...] that is the replied-to message. USE IT FULLY. ' +
+    'TODAY: ' + dateStr + ', ' + timeStr + '. Always use this when asked about date or time. Canton Fair starts April 15 2026 - ' + Math.max(0, Math.round((new Date('2026-04-15') - now) / 86400000)) + ' days away. ' +
     'Personality: direct, confident, smart, practical. Max 200 words in Telegram unless full report. Can tell jokes.';
 }
 
@@ -94,8 +92,7 @@ async function saveMessage(sessionId, role, content, partnerId, source, telegram
     await supabase.from('chat_messages').insert({
       session_id: sessionId || 'team-chat',
       partner_id: partnerId || null,
-      role: role,
-      content: content,
+      role: role, content: content,
       source: source || 'web',
       telegram_user: telegramUser || null
     });
@@ -185,7 +182,7 @@ async function analyseCatalogue(content, supplierId, sessionId, uploadId) {
       await supabase.from('products').insert({ product_name: p.name, notes: [p.description, p.materials, p.notes].filter(Boolean).join(' | '), buy_price_usd: p.price_usd || null, supplier_id: supplierId || null, fair_session_id: null, category: 'Catalogue Import' }).catch(function() {});
     }
   }
-  var summary = await callAI([{ role: 'user', content: 'Summarise this supplier catalogue for a Telegram group. Format: *SUPPLIER OVERVIEW* line, then â¢ bullet points for top products with price ranges and MOQ where available, then â¢ key advantages. Use *Bold* for section titles, â¢ for bullets. Max 200 words. No ## headers, no language prefix labels. Content: ' + content.slice(0, 2000) }], getBaseSystem(), 200, 12000) || 'Catalogue analysed.';
+  var summary = await callAI([{ role: 'user', content: 'Summarise this supplier catalogue for a Telegram group. Format: *SUPPLIER OVERVIEW* line, then • bullet points for top products with price ranges and MOQ where available, then • key advantages. Use *Bold* for section titles, • for bullets. Max 200 words. No ## headers, no language prefix labels. Content: ' + content.slice(0, 2000) }], getBaseSystem(), 200, 12000) || 'Catalogue analysed.';
   if (uploadId) {
     await supabase.from('catalogue_uploads').update({ analysis_status: 'done', products_extracted: products.length, summary: summary.slice(0,2000), supplier_id: supplierId || null }).eq('id', uploadId);
   }
@@ -221,6 +218,8 @@ async function generateMorningReport(sessionId, date) {
 
 module.exports = {
   processMessage: processMessage,
+  getBaseSystem: getBaseSystem,
+  getChatHistory: getChatHistory,
   generateEveningReport: generateEveningReport,
   generateMorningReport: generateMorningReport,
   isValeranCalled: isValeranCalled,
@@ -228,7 +227,5 @@ module.exports = {
   saveMessage: saveMessage,
   loadMemory: loadMemory,
   saveCorrection: saveCorrection,
-  analyseCatalogue: analyseCatalogue,
-  getBaseSystem: getBaseSystem,
-  getChatHistory: getChatHistory
+  analyseCatalogue: analyseCatalogue
 };
