@@ -1,11 +1,11 @@
 'use strict';
 // Synergy Ventures - Scraping Engine
 // Uses ScraperAPI to pull price data from Amazon DE, eMAG, 1688, Alibaba
-// ScraperAPI key stored in process.env.SCRAPER_API_KEY
+// ScraperAPI key stored in process.env.SCRAPERAPI_KEY
 
 const { createClient } = require('@supabase/supabase-js');
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-const SCRAPER_KEY = process.env.SCRAPER_API_KEY;
+const SCRAPER_KEY = process.env.SCRAPERAPI_KEY;
 
 async function scrape(targetUrl, countryCode) {
   if (!SCRAPER_KEY) throw new Error('SCRAPER_API_KEY not set in Vercel environment variables');
