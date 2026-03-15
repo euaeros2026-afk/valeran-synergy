@@ -160,10 +160,13 @@ export default function Chat({ supabase, partner }) {
   function fmt(ts) { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
 
   function addTemp(content) {
-    var msg = { id: 'tmp-' + Date.now(), role: 'user', content: content, telegram_user: window.__valeranUser || '', _mine: true, _tmp: true, created_at: new Date().toISOString() }
-    setMessages(function(p) { return p.concat([msg]) })
-  }
-  function addAI(reply) {
+    var tmpId = 'tmp-' + Date.now();
+    var msg = { id: tmpId, role: 'user', content: content, telegram_user: window.__valeranUser || '', _mine: true, _temp: true };
+    setMessages(function(p) { return p.concat([msg]) });
+    setTimeout(function() {
+      setMessages(function(p) { return p.filter(function(x) { return x.id !== tmpId || !x._temp; }); });
+    }, 10000);
+  }  function addAI(reply) {
     setMessages(function(p) { return p.concat([{ id: 'ai-' + Date.now(), role: 'assistant', content: reply, _mine: false, created_at: new Date().toISOString() }]) })
   }
 
@@ -182,7 +185,7 @@ export default function Chat({ supabase, partner }) {
       if (isAI) {
         var ra = await fetch(API + '/api/chat/message', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text: full, session_id: 'team-chat' }) })
         var da = await ra.json()
-        if (da.reply) addAI(da.reply)
+        // AI reply arrives via realtime subscription
       } else {
         await fetch(API + '/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text: full, session_id: 'team-chat' }) })
       }
