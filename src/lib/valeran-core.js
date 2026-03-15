@@ -4,22 +4,32 @@ var supabase = supabaseJs.createClient(process.env.SUPABASE_URL, process.env.SUP
 var ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 var MODEL = 'claude-haiku-4-5-20251001';
 
-var BASE_SYSTEM = 'You are Valeran, the AI assistant for Synergy Ventures LLC-FZ at Canton Fair 2026 in Guangzhou, China. ' +
-  'Company: Synergy Ventures sources products from Chinese manufacturers and sells in the EU via Shopify + Instagram/Facebook. Goal: max ROI. Any category, any product. ' +
-  'Team: Alexander Oslan (owner, English), Ina Kanaplianikava (partner, Russian, at fair), Konstantin Khoch (partner, Russian, at fair), Konstantin Ganev (partner, Bulgarian, at fair), Slavi Mikinski (observer, Bulgarian, remote). ' +
-  'Canton Fair 2026: Phase 1 Apr 15-19 (electronics, hardware, lighting), Phase 2 Apr 23-27 (home goods, furniture, gifts), Phase 3 May 1-5 (fashion, textiles, toys). Location: Pazhou Complex Guangzhou. April weather: 22-28C humid rain - bring umbrella. ' +
-  'Margin formula: buy_usd x 0.92 = eur, x 1.12 freight, x 1.035 duty = landed. Net margin = (sell - landed - 15pct_fees - 10pct_ads) / sell. Target >35%. ' +
-  'Sourcing: 1688 (cheapest), Alibaba (export), Taobao (CN retail), AliPrice (reverse image). EU: Amazon DE/UK/FR, eMAG Bulgaria/Romania. ' +
-  'Compliance: CE (electronics/toys), RoHS (electronics), REACH (chemicals). Cost 500-5000 EUR per product. ' +
-  'LANGUAGE RULE - ABSOLUTE: detect input language and reply in EXACT same language. Bulgarian in = Bulgarian out. Russian in = Russian out. English in = English out. NEVER mix. ' +'NEVER prefix your reply with a language label. Forbidden prefixes: **EN**, **BG**, **RU**, EN:, BG:, RU:, English:, Russian:, Bulgarian: — these must NEVER appear. Reply directly in the correct language â just reply directly in the correct language. ' +
-  'CONTEXT RULE: When message starts with [Context: ...] that is the replied-to message. USE IT FULLY. Never say you cannot see previous messages. ' +
-  'TESTING MODE: Currently March 2026, testing before Canton Fair. Learn from all corrections. ' +
-  'Personality: direct, confident, smart, practical. Max 200 words in Telegram unless full report. Can tell jokes.';
+function getBaseSystem() {
+  var now = new Date();
+  var opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+  var dateStr = now.toLocaleDateString('en-GB', opts);
+  var shanghaiOffset = 8 * 60;
+  var utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  var chinaTime = new Date(utc + shanghaiOffset * 60000);
+  var timeStr = chinaTime.getHours().toString().padStart(2,'0') + ':' + chinaTime.getMinutes().toString().padStart(2,'0') + ' China time';
+  return 'You are Valeran, the AI assistant for Synergy Ventures LLC-FZ at Canton Fair 2026 in Guangzhou, China. ' +
+    'Company: Synergy Ventures sources products from Chinese manufacturers and sells in the EU via Shopify + Instagram/Facebook. Goal: max ROI. Any category, any product. ' +
+    'Team: Alexander Oslan (owner, English), Ina Kanaplianikava (partner, Russian, at fair), Konstantin Khoch (partner, Russian, at fair), Konstantin Ganev (partner, Bulgarian, at fair), Slavi Mikinski (observer, Bulgarian, remote). ' +
+    'Canton Fair 2026: Phase 1 Apr 15-19 (electronics, hardware, lighting), Phase 2 Apr 23-27 (home goods, furniture, gifts), Phase 3 May 1-5 (fashion, textiles, toys). Location: Pazhou Complex Guangzhou. April weather: 22-28C humid rain - bring umbrella. ' +
+    'Margin formula: buy_usd x 0.92 = eur, x 1.12 freight, x 1.035 duty = landed. Net margin = (sell - landed - 15pct_fees - 10pct_ads) / sell. Target >35%. ' +
+    'Sourcing: 1688 (cheapest), Alibaba (export), Taobao (CN retail), AliPrice (reverse image search). EU: Amazon DE/UK/FR, eMAG Bulgaria/Romania. ScraperAPI used for price research. ' +
+    'Compliance: CE (electronics/toys), RoHS (electronics), REACH (chemicals). Cost 500-5000 EUR per product. ' +
+    'LANGUAGE RULE - ABSOLUTE: detect input language and reply in EXACT same language. Bulgarian in = Bulgarian out. Russian in = Russian out. English in = English out. NEVER mix. ' +
+    'NEVER prefix your reply with a language label. Forbidden prefixes: **EN**, **BG**, **RU**, EN:, BG:, RU: - these must NEVER appear. Reply directly in the correct language. ' +
+    'CONTEXT RULE: When message starts with [Context: ...] that is the replied-to message. USE IT FULLY. Never say you cannot see previous messages. ' +
+    'TODAY: ' + dateStr + ', ' + timeStr + '. Canton Fair starts April 15 2026. Act accordingly - if asked about dates, use this. ' +
+    'Personality: direct, confident, smart, practical. Max 200 words in Telegram unless full report. Can tell jokes.';
+}
 
 async function callAI(messages, system, maxTokens, timeoutMs) {
   maxTokens = maxTokens || 600;
   timeoutMs = timeoutMs || 22000;
-  system = system || BASE_SYSTEM;
+  system = system || getBaseSystem();
   var ctrl = new AbortController();
   var timer = setTimeout(function() { ctrl.abort(); }, timeoutMs);
   try {
@@ -74,7 +84,6 @@ async function saveCorrection(content, partnerId, subject) {
 }
 
 async function saveMessage(sessionId, role, content, partnerId, source, telegramUser) {
-  // Strip language labels from assistant messages before saving
   if (role === 'assistant' && content) {
     content = content
       .replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n*/gm, '')
@@ -92,6 +101,7 @@ async function saveMessage(sessionId, role, content, partnerId, source, telegram
     });
   } catch(e) { console.error('[save]', e.message); }
 }
+
 async function getChatHistory(sessionId) {
   var sid = sessionId || 'team-chat';
   try {
@@ -134,7 +144,7 @@ async function processMessage(opts) {
   var memAndHistory = await Promise.all([loadMemory(), getChatHistory(sessionId)]);
   var memory = memAndHistory[0];
   var history = memAndHistory[1];
-  var system = BASE_SYSTEM + memory;
+  var system = getBaseSystem() + memory;
   var query = text.replace(/^(valeran|valera|\u0432\u0430\u043b\u0435\u0440\u0430\u043d|\u0432\u0430\u043b\u0435\u0440\u0430)[,\s!?]*/i, '').trim() || text;
   var msgs = history.map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
   msgs.push({ role: 'user', content: query });
@@ -175,7 +185,7 @@ async function analyseCatalogue(content, supplierId, sessionId, uploadId) {
       await supabase.from('products').insert({ product_name: p.name, notes: [p.description, p.materials, p.notes].filter(Boolean).join(' | '), buy_price_usd: p.price_usd || null, supplier_id: supplierId || null, fair_session_id: null, category: 'Catalogue Import' }).catch(function() {});
     }
   }
-  var summary = await callAI([{ role: 'user', content: 'Summarise this supplier catalogue for a Telegram group. Format: *SUPPLIER OVERVIEW* line, then • bullet points for top products with price ranges and MOQ where available, then • key advantages. Use *Bold* for section titles, • for bullets. Max 200 words. No ## headers, no language prefix labels. Content: ' + content.slice(0, 2000) }], BASE_SYSTEM, 200, 12000) || 'Catalogue analysed.';
+  var summary = await callAI([{ role: 'user', content: 'Summarise this supplier catalogue for a Telegram group. Format: *SUPPLIER OVERVIEW* line, then â¢ bullet points for top products with price ranges and MOQ where available, then â¢ key advantages. Use *Bold* for section titles, â¢ for bullets. Max 200 words. No ## headers, no language prefix labels. Content: ' + content.slice(0, 2000) }], getBaseSystem(), 200, 12000) || 'Catalogue analysed.';
   if (uploadId) {
     await supabase.from('catalogue_uploads').update({ analysis_status: 'done', products_extracted: products.length, summary: summary.slice(0,2000), supplier_id: supplierId || null }).eq('id', uploadId);
   }
@@ -184,7 +194,7 @@ async function analyseCatalogue(content, supplierId, sessionId, uploadId) {
 
 async function generateEveningReport(sessionId, date) {
   var memory = await loadMemory();
-  var system = BASE_SYSTEM + memory;
+  var system = getBaseSystem() + memory;
   var prods = await supabase.from('products').select('name, buy_price_usd, sell_price_eur, notes, category').eq('session_id', sessionId).gte('created_at', date).limit(15);
   var supps = await supabase.from('suppliers').select('name, hall, booth_number').eq('session_id', sessionId).gte('created_at', date).limit(10);
   var meets = await supabase.from('meetings').select('scheduled_at, notes').gte('scheduled_at', date).limit(8);
@@ -198,7 +208,7 @@ async function generateEveningReport(sessionId, date) {
 
 async function generateMorningReport(sessionId, date) {
   var memory = await loadMemory();
-  var system = BASE_SYSTEM + memory;
+  var system = getBaseSystem() + memory;
   var prods = await supabase.from('products').select('name, buy_price_usd, notes, category').eq('session_id', sessionId).order('created_at', { ascending: false }).limit(10);
   var meets = await supabase.from('meetings').select('scheduled_at, notes').gte('scheduled_at', date).limit(8);
   var research = await supabase.from('product_research').select('product_name, platform, price_eur, rating').order('created_at', { ascending: false }).limit(8);
@@ -218,5 +228,7 @@ module.exports = {
   saveMessage: saveMessage,
   loadMemory: loadMemory,
   saveCorrection: saveCorrection,
-  analyseCatalogue: analyseCatalogue
+  analyseCatalogue: analyseCatalogue,
+  getBaseSystem: getBaseSystem,
+  getChatHistory: getChatHistory
 };
