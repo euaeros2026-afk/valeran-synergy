@@ -293,6 +293,7 @@ app.get('/api/debug/tg', async function(req, res) {
     result.sid = sid;
     result.steps.push('2_sid='+sid);
     var memory = await core.loadMemory();
+    supabase.from('chat_messages').insert({session_id:sid,role:'user',content:'TRACE1_memory_loaded',source:'telegram',telegram_user:'TRACE'});
     result.memLen = memory.length;
     result.steps.push('3_mem='+memory.length);
     var histR = await supabase.from('chat_messages').select('role,content').eq('session_id',sid).order('created_at',{ascending:false}).limit(3);
@@ -578,12 +579,14 @@ app.post('/api/telegram/webhook', async function(req, res) {
     var memory  = await core.loadMemory();
     var histR   = await supabase.from('chat_messages').select('role, content').eq('session_id', sid).not('content', 'ilike', '__VALERAN_%').order('created_at', { ascending: false }).limit(8);
     var history = (histR.data || []).reverse();
+    supabase.from('chat_messages').insert({session_id:sid,role:'user',content:'TRACE2_hist_count='+history.length,source:'telegram',telegram_user:'TRACE'});
     var msgs    = history.map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
     msgs.push({ role: 'user', content: query });
 
     // Save user message FIRST (before AI call so it's always recorded)
     await supabase.from('chat_messages').insert({ session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from }).catch(function(){});
 
+    supabase.from('chat_messages').insert({session_id:sid,role:'user',content:'TRACE3_before_callAI_msgCount='+msgs.length,source:'telegram',telegram_user:'TRACE'});
     var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 18000);
     if (!reply) reply = 'Sorry, having trouble connecting. Please try again.';
 
