@@ -8,7 +8,6 @@ var supabaseJs = require('@supabase/supabase-js');
 var core       = require('./lib/valeran-core');
 var tg         = require('./lib/telegram-bot');
 var scraper    = require('./lib/scraping-engine');
-const imgSearch     = require('./lib/image-search');
 
 var app      = express();
 var supabase = supabaseJs.createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -146,61 +145,20 @@ app.get('/api/research/results', requireAuth, async function(req, res) {
   res.json(r.error ? { error: r.error } : { results: r.data || [] });
 });
 
-// ---- IMAGE SEARCH ENDPOINT ----
-app.post('/api/image-search', requireAuth, upload.single('image'), async function(req, res) {
-  try {
-    var b64 = req.file ? req.file.buffer.toString('base64') : null;
-    var mime = req.file ? req.file.mimetype : 'image/jpeg';
-    var keywords = (req.body && req.body.keywords) || '';
-    if (!b64 && !keywords) return res.status(400).json({ error: 'Provide image file or keywords' });
-    var result = await imgSearch.searchProduct(b64, mime, { keywords: keywords || undefined });
-    res.json({ success: true, result: result, summary: imgSearch.formatForAI(result) });
-  } catch(e) { console.error('[image-search]', e.message); res.status(500).json({ error: e.message }); }
-});
-
 app.post('/api/chat/photo', requireAuth, upload.single('photo'), async function(req, res) {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No photo uploaded' });
-    var sid = (req.body && req.body.session_id) || 'team-chat';
-    var senderName = req.partner ? (req.partner.name || req.partner.email) : 'User';
-    var b64     = req.file.buffer.toString('base64');
-    var mime    = req.file.mimetype || 'image/jpeg';
-    var caption = req.body.caption || '';
-
-    // Run Vision API + market search
-    var searchResult = await imgSearch.searchProduct(b64, mime, { keywords: caption || undefined })
-      .catch(function(e) { return { errors: [e.message], vision: {}, markets: {} }; });
-    var searchSummary = imgSearch.formatForAI(searchResult);
-
-    // Build AI prompt
-    var promptText = 'Photo uploaded by ' + senderName + (caption ? '. Caption: ' + caption + '.' : '.') +
-      '
-
-Image search results:
-' + searchSummary +
-      '
-
-Please identify the product, assess China sourcing options, estimate EU retail price and margin. ' +
-      'If this is a catalogue page extract all product details. Be direct and practical.';
-
-    var msgs = [{ role: 'user', content: promptText }];
-    var reply = await core.callAI(msgs, core.getBaseSystem ? core.getBaseSystem() : null, 800, 55000);
-    if (!reply) reply = 'Search results:
-' + searchSummary;
-
-    await core.saveMessage(sid, 'user', senderName + ' sent a photo' + (caption ? ': ' + caption : ''), req.partner ? req.partner.id : null, 'web', senderName);
-    await core.saveMessage(sid, 'assistant', reply, null, 'web', null);
-
-    res.json({
-      reply: reply,
-      searchResult: {
-        queryUsed:   searchResult.queryUsed || '',
-        labels:      (searchResult.vision && searchResult.vision.labels      || []).slice(0, 5),
-        webEntities: (searchResult.vision && searchResult.vision.webEntities || []).slice(0, 5)
-      },
-      session_id: sid
-    });
-  } catch(e) { console.error('[photo]', e.message); res.status(500).json({ error: e.message }); }
+    var sid = req.body.session_id || (await getActiveSessionId()) || 'team-chat';
+    if (!req.file) return res.status(400).json({ error: 'No photo' });
+    var labels = [];
+    try {
+      var vr = await fetch('https://vision.googleapis.com/v1/images:annotate?key=' + process.env.GOOGLE_API_KEY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requests: [{ image: { content: req.file.buffer.toString('base64') }, features: [{ type: 'LABEL_DETECTION', maxResults: 8 }] }] }) });
+      var vd = await vr.json();
+      labels = ((vd.responses && vd.responses[0] && vd.responses[0].labelAnnotations) || []).map(function(l) { return l.description; });
+    } catch(e) {}
+    var q = 'Valeran, ' + ([req.body.caption, labels.length ? 'Product: ' + labels.join(', ') : ''].filter(Boolean).join('. ') || 'Photo from Canton Fair');
+    var result = await core.processMessage({ text: q, partnerId: req.partner && req.partner.id, sessionId: sid });
+    res.json({ reply: result.reply || 'Photo logged.', visionLabels: labels, session_id: sid });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/chat/voice', requireAuth, upload.single('audio'), async function(req, res) {
