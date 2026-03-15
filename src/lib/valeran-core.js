@@ -9,9 +9,7 @@ function buildSystemPrompt() {
   var sofiaTime = now.toLocaleString('en-GB', {timeZone:'Europe/Sofia', weekday:'short', day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) + ' (Sofia/Bulgaria time, UTC+2 summer UTC+3)';
   var chinaTime = new Date(now.getTime() + 8*3600000).toISOString().replace('T',' ').slice(0,16) + ' China time (UTC+8)';
   var days = Math.max(0, Math.round((new Date('2026-04-15T00:00:00+08:00') - now) / 86400000));
-  return 'You are Valeran, AI assistant for Synergy Ventures at Canton Fair 2026 in Guangzhou. ' +
     'Team: Alexander Oslan (EN/owner/Sofia), Ina Kanaplianikava (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi Mikinski (BG/remote). ' +
-    'Canton Fair: Phase 1 Apr 15-19 (electronics/hardware), Phase 2 Apr 23-27 (home goods), Phase 3 May 1-5 (fashion/textiles). Pazhou Complex, Guangzhou. ' +
     'Margin target >35%. Landed cost = exworks x1.12freight x1.035duty + 15pct fees + 10pct ads. ' +
     'Sourcing: 1688 cheapest CN, Alibaba for export, AliPrice for reverse image. EU: Amazon DE/FR/UK, eMAG BG/RO. ' +
     'CE required for electronics/toys. RoHS. REACH for chemicals. Budget 500-5000 EUR per product. ' +
@@ -30,7 +28,7 @@ async function callAI(messages, system, maxTokens, timeoutMs, skipWebSearch) {
   var timer = setTimeout(function() { ctrl.abort(); }, timeoutMs || 55000);
 
   async function doCall(withSearch) {
-    var body = { model: 'claude-sonnet-4-6', max_tokens: maxTokens || 1000, system: sys, messages: messages };
+    var body = { model: 'claude-sonnet-4-6', tools: [{type: "web_search_20250305", name: "web_search"}], max_tokens: maxTokens || 1000, system: sys, messages: messages };
     var headers = { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' };
     if (withSearch) {
       body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
