@@ -1,11 +1,3 @@
-  function addTemp(content) {
-    var msg = { id: 'tmp-' + Date.now(), role: 'user', content: content, created_at: new Date().toISOString(), telegram_user: window.__valeranUser || '', _mine: true };
-    setMessages(function(p) { return p.concat([msg]); });
-  }
-  function addTemp(content) {
-    var msg = { id: 'tmp-' + Date.now(), role: 'user', content: content, created_at: new Date().toISOString(), telegram_user: window.__valeranUser || '', _mine: true };
-    setMessages(function(p) { return p.concat([msg]); });
-  }
 import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 
@@ -78,8 +70,6 @@ export default function Chat({ supabase, partner }) {
             if (!replaced) next = next.concat([Object.assign({}, m, { _mine: true })])
             return next
           }
-          if (m.role === 'assistant' && prev.some(function(x) { return x.content === m.content && x.role === 'assistant'; })) return prev;
-          if (m.role === 'assistant' && prev.some(function(x) { return x.content === m.content && x.role === 'assistant'; })) return prev;
           if (m.role === 'assistant' && prev.some(function(x) { return x.content === m.content && x.role === 'assistant'; })) return prev;
           return prev.concat([m])
         })
@@ -158,7 +148,190 @@ export default function Chat({ supabase, partner }) {
       var e2 = el.selectionEnd || input.length
       var v = input.slice(0, s) + em + input.slice(e2)
       setInput(v)
-  
+      setTimeout(function() { el.focus(); el.setSelectionRange(s + em.length, s + em.length) }, 0)
+    } else {
+      setInput(function(v) { return v + em })
+    }
+    setShowEmoji(false)
+  }
+
+  function isMine(msg) { return !!msg._mine }
+  function isValeran(msg) { return msg.role === 'assistant' }
+  function getSender(msg) { return isValeran(msg) ? 'Valeran' : (msg.telegram_user || window.__valeranUser || 'Partner') }
+  function fmt(ts) { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+
+  function addTemp(content) {
+    var msg = { id: 'tmp-' + Date.now(), role: 'user', content: content, created_at: new Date().toISOString(), telegram_user: window.__valeranUser || '', _mine: true };
+    setMessages(function(p) { return p.concat([msg]); });
+  }
+import { useState, useEffect, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
+
+const API = import.meta.env.VITE_API_URL || ''
+
+window.__valeranUser = window.__valeranUser || ''
+
+function SVLogo({ size }) {
+  size = size || 36
+  return <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" width={size} height={size} style={{borderRadius:'8px',flexShrink:0}}><rect width="120" height="120" fill="#000" rx="8"/><text x="8" y="82" fontFamily="Georgia,serif" fontSize="74" fontWeight="700" fill="white" letterSpacing="-2">S</text><text x="52" y="82" fontFamily="Georgia,serif" fontSize="74" fontWeight="700" fill="white" letterSpacing="-2">V</text><line x1="58" y1="95" x2="108" y2="55" stroke="white" strokeWidth="1.5" opacity="0.9"/></svg>
+}
+
+var COLORS = { alexander: '#e8a045', ina: '#7c6af7', konstantin: '#4ade80', slavi: '#fb7185' }
+function nameColor(n) { if (!n) return '#888'; var k = n.toLowerCase(); for (var key in COLORS) { if (k.indexOf(key) > -1) return COLORS[key] } return '#888' }
+function getInitials(n) { if (!n) return '?'; var p = n.trim().split(' '); return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : n.slice(0, 2).toUpperCase() }
+function Avatar({ name, size }) {
+  size = size || 28
+  return <div style={{width:size,height:size,borderRadius:'50%',background:nameColor(name),display:'flex',alignItems:'center',justifyContent:'center',fontSize:size*0.38,fontWeight:'700',color:'#000',flexShrink:0}}>{getInitials(name)}</div>
+}
+
+var EMOJIS = ['\uD83D\uDE0A','\uD83D\uDE02','\uD83D\uDC4D','\u2764\uFE0F','\uD83D\uDD25','\u2705','\uD83D\uDC4C','\uD83D\uDCAA','\uD83C\uDFAF','\uD83D\uDCE6','\uD83D\uDCB0','\uD83C\uDFED','\uD83E\uDD1D','\u26A1','\uD83C\uDDE8\uD83C\uDDF3','\uD83C\uDDEA\uD83C\uDDFA','\uD83D\uDCCA','\uD83D\uDCA1','\uD83D\uDE80','\uD83D\uDE05','\uD83D\uDE4F','\uD83D\uDC4F','\uD83D\uDE0E','\uD83E\uDD14','\uD83D\uDCAF','\u2B50','\uD83D\uDCF8','\uD83C\uDF89','\uD83D\uDE2E','\uD83D\uDC4B']
+
+export default function Chat({ supabase, partner }) {
+  var [messages,  setMessages]  = useState([])
+  var [input,     setInput]     = useState('')
+  var [sending,   setSending]   = useState(false)
+  var [recording, setRecording] = useState(false)
+  var [presence,  setPresence]  = useState([])
+  var [typing,    setTyping]    = useState([])
+  var [stats,     setStats]     = useState({ products: 0, suppliers: 0, meetings: 0 })
+  var [error,     setError]     = useState(null)
+  var [tab,       setTab]       = useState('chat')
+  var [replyTo,   setReplyTo]   = useState(null)
+  var [showEmoji, setShowEmoji] = useState(false)
+
+  var mediaRef     = useRef(null)
+  var bottomRef    = useRef(null)
+  var fileRef      = useRef(null)
+  var cameraRef    = useRef(null)
+  var inputRef     = useRef(null)
+  var pingRef      = useRef(null)
+  var typingTimers = useRef({})
+  var bcastRef     = useRef(null)
+
+  var myName = (partner && partner.name) || ''
+  window.__valeranUser = myName
+
+  useEffect(function() {
+    loadPresence(); loadStats(); pingPresence()
+    pingRef.current = setInterval(function() { pingPresence(); loadPresence() }, 30000)
+
+    var ch = supabase.channel('sv_chat_v7')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, function(payload) {
+        var m = payload.new
+        if (m.session_id !== 'team-chat') return
+        var me = (window.__valeranUser || '').toLowerCase()
+        var sender = (m.telegram_user || '').toLowerCase()
+        var isMyMsg = m.role === 'user' && me && sender === me
+        setMessages(function(prev) {
+          if (prev.find(function(x) { return x.id === m.id })) return prev
+          if (isMyMsg) {
+            var replaced = false
+            var next = prev.map(function(x) {
+              if (!replaced && x._tmp && x.content === m.content) {
+                replaced = true
+                return Object.assign({}, m, { _mine: true })
+              }
+              return x
+            })
+            if (!replaced) next = next.concat([Object.assign({}, m, { _mine: true })])
+            return next
+          }
+          return prev.concat([m])
+        })
+      })
+      .subscribe(function(status) { if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { setTimeout(function() { loadMessages(); }, 3000); } })
+
+    var bCh = supabase.channel('typing_sv_v3', { config: { broadcast: { self: false } } })
+      .on('broadcast', { event: 'typing' }, function(payload) {
+        var name = payload.payload && payload.payload.name
+        if (!name) return
+        var me = window.__valeranUser || ''
+        if (me && name.toLowerCase() === me.toLowerCase()) return
+        setTyping(function(prev) { return prev.indexOf(name) > -1 ? prev : prev.concat([name]) })
+        clearTimeout(typingTimers.current[name])
+        typingTimers.current[name] = setTimeout(function() {
+          setTyping(function(prev) { return prev.filter(function(n) { return n !== name }) })
+        }, 3500)
+      })
+      .subscribe()
+    bcastRef.current = bCh
+
+    window.addEventListener('beforeunload', markOffline)
+    return function() {
+      clearInterval(pingRef.current);
+      supabase.removeChannel(ch)
+      supabase.removeChannel(bCh)
+      window.removeEventListener('beforeunload', markOffline)
+      markOffline()
+    }
+  }, [])
+
+  // Re-load messages when partner name becomes available (fixes _mine tagging)
+  useEffect(function() {
+    if (myName) loadMessages()
+  }, [myName])
+
+  useEffect(function() {
+    bottomRef.current && bottomRef.current.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, tab])
+
+  async function getToken() { var s = await supabase.auth.getSession(); return s.data.session && s.data.session.access_token }
+  async function pingPresence() { var t = await getToken(); if (!t) return; fetch(API + '/api/presence/ping', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ platform: 'web' }) }).catch(function() {}) }
+  async function markOffline() { var t = await getToken(); if (!t) return; fetch(API + '/api/presence/offline', { method: 'POST', headers: { Authorization: 'Bearer ' + t }, keepalive: true }).catch(function() {}) }
+  async function loadPresence() { var t = await getToken(); if (!t) return; var r = await fetch(API + '/api/presence', { headers: { Authorization: 'Bearer ' + t } }).catch(function() { return null }); if (r && r.ok) { var d = await r.json(); setPresence(d.presence || []) } }
+  async function loadStats() {
+    var t = await getToken()
+    if (!t) return
+    try {
+      var r = await fetch(API + '/api/stats', { headers: { Authorization: 'Bearer ' + t } })
+      if (r && r.ok) { var d = await r.json(); setStats({ products: d.products||0, suppliers: d.suppliers||0, meetings: d.meetings||0, uploads: d.uploads||0 }) }
+    } catch(e) {}
+  }
+  async function loadMessages() {
+    var t = await getToken()
+    var r = await fetch(API + '/api/chat/messages?limit=60&session_id=team-chat', { headers: { Authorization: 'Bearer ' + t } }).catch(function() { return null })
+    if (!r || !r.ok) return
+    var d = await r.json()
+    if (!d.messages) return
+    var me = (window.__valeranUser || '').toLowerCase()
+    setMessages(d.messages.map(function(m) {
+      return Object.assign({}, m, { _mine: m.role === 'user' && me && (m.telegram_user || '').toLowerCase() === me })
+    }))
+  }
+
+  function handleInput(e) {
+    setInput(e.target.value)
+    if (e.target.value.trim() && bcastRef.current) {
+      bcastRef.current.send({ type: 'broadcast', event: 'typing', payload: { name: window.__valeranUser || 'Someone' } })
+    }
+  }
+
+  function insertEmoji(em) {
+    var el = inputRef.current
+    if (el) {
+      var s = el.selectionStart || input.length
+      var e2 = el.selectionEnd || input.length
+      var v = input.slice(0, s) + em + input.slice(e2)
+      setInput(v)
+      setTimeout(function() { el.focus(); el.setSelectionRange(s + em.length, s + em.length) }, 0)
+    } else {
+      setInput(function(v) { return v + em })
+    }
+    setShowEmoji(false)
+  }
+
+  function isMine(msg) { return !!msg._mine }
+  function isValeran(msg) { return msg.role === 'assistant' }
+  function getSender(msg) { return isValeran(msg) ? 'Valeran' : (msg.telegram_user || window.__valeranUser || 'Partner') }
+  function fmt(ts) { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+
+  function addTemp(content) {
+    var tmpId = 'tmp-' + Date.now();
+    var msg = { id: tmpId, role: 'user', content: content, telegram_user: window.__valeranUser || '', _mine: true, _temp: true };
+    setMessages(function(p) { return p.concat([msg]) });
+    setTimeout(function() {
+      setMessages(function(p) { return p.filter(function(x) { return x.id !== tmpId || !x._temp; }); });
+    }, 10000);
   }  function addAI(reply) {
     setMessages(function(p) { return p.concat([{ id: 'ai-' + Date.now(), role: 'assistant', content: reply, _mine: false, created_at: new Date().toISOString() }]) })
   }
@@ -178,7 +351,7 @@ export default function Chat({ supabase, partner }) {
       if (isAI) {
         var ra = await fetch(API + '/api/chat/message', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text: full, session_id: 'team-chat' }) })
         var da = await ra.json()
-        if (da.reply) addAI(da.reply)
+        // AI reply arrives via realtime subscription
       } else {
         await fetch(API + '/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text: full, session_id: 'team-chat' }) })
       }
@@ -400,6 +573,5 @@ export default function Chat({ supabase, partner }) {
 
 function AttachIcon(){return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>}
 function CameraIcon(){return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>}
-function MicIcon(){return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>}
 function MicIcon(){return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>}
 function SendIcon(){return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>}
