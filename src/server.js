@@ -604,7 +604,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
   res.sendStatus(200);
 
 
-// ---- TG TEST ----
+// ---- TG TEST [v1773570177039] ----
 app.get('/api/tg-test', async function(req, res) {
   try {
     var token = process.env.TELEGRAM_BOT_TOKEN || 'NOT SET';
