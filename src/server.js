@@ -8,6 +8,7 @@ var supabaseJs = require('@supabase/supabase-js');
 var core       = require('./lib/valeran-core');
 var tg         = require('./lib/telegram-bot');
 var scraper    = require('./lib/scraping-engine');
+const imgSearch     = require('./lib/image-search');
 
 var app      = express();
 var supabase = supabaseJs.createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -143,6 +144,19 @@ app.get('/api/research/results', requireAuth, async function(req, res) {
   if (req.query.platform) q = q.eq('platform', req.query.platform);
   var r = await q;
   res.json(r.error ? { error: r.error } : { results: r.data || [] });
+});
+
+// ---- IMAGE SEARCH ----
+app.post('/api/image-search', requireAuth, upload.single('image'), async function(req, res) {
+  try {
+    var b64 = req.file ? req.file.buffer.toString('base64') : null;
+    var mime = req.file ? req.file.mimetype : 'image/jpeg';
+    var keywords = (req.body && req.body.keywords) || '';
+    if (!b64 && !keywords) return res.status(400).json({ error: 'Provide image file or keywords' });
+    imgSearch.searchProduct(b64, mime, { keywords: keywords || undefined }).then(function(result) {
+      res.json({ success: true, result: result, summary: imgSearch.formatForAI(result) });
+    }).catch(function(e) { res.status(500).json({ error: e.message }); });
+  } catch(e) { console.error('[image-search]', e.message); res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/chat/photo', requireAuth, upload.single('photo'), async function(req, res) {
