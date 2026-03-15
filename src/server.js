@@ -3,11 +3,12 @@ require('dotenv').config();
 var express    = require('express');
 var cors       = require('cors');
 var multer     = require('multer');
+var cron       = require('node-cron');
 var supabaseJs = require('@supabase/supabase-js');
 var core       = require('./lib/valeran-core');
 var tg         = require('./lib/telegram-bot');
 var scraper    = require('./lib/scraping-engine');
-const imgSearch = require('./lib/image-search');
+const imgSearch     = require('./lib/image-search');
 
 var app      = express();
 var supabase = supabaseJs.createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -145,18 +146,33 @@ app.get('/api/research/results', requireAuth, async function(req, res) {
   res.json(r.error ? { error: r.error } : { results: r.data || [] });
 });
 
+// ---- IMAGE SEARCH ENDPOINT ----
+app.post('/api/image-search', requireAuth, upload.single('image'), async function(req, res) {
+  try {
+    var b64 = req.file ? req.file.buffer.toString('base64') : null;
+    var mime = req.file ? req.file.mimetype : 'image/jpeg';
+    var keywords = (req.body && req.body.keywords) || '';
+    if (!b64 && !keywords) return res.status(400).json({ error: 'Provide image file or keywords' });
+    var result = await imgSearch.searchProduct(b64, mime, { keywords: keywords || undefined });
+    res.json({ success: true, result: result, summary: imgSearch.formatForAI(result) });
+  } catch(e) { console.error('[image-search]', e.message); res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/chat/photo', requireAuth, upload.single('photo'), async function(req, res) {
   try {
     if (!req.file) return res.status(400).json({ error: 'No photo uploaded' });
     var sid = (req.body && req.body.session_id) || 'team-chat';
     var senderName = req.partner ? (req.partner.name || req.partner.email) : 'User';
-    var b64  = req.file.buffer.toString('base64');
-    var mime = req.file.mimetype || 'image/jpeg';
+    var b64     = req.file.buffer.toString('base64');
+    var mime    = req.file.mimetype || 'image/jpeg';
     var caption = req.body.caption || '';
-    var searchResult = await imgSearch.searchProduct(b64, mime, { keywords: caption || undefined }).catch(function(e) {
-      return { errors: [e.message], vision: {}, markets: {} };
-    });
+
+    // Run Vision API + market search
+    var searchResult = await imgSearch.searchProduct(b64, mime, { keywords: caption || undefined })
+      .catch(function(e) { return { errors: [e.message], vision: {}, markets: {} }; });
     var searchSummary = imgSearch.formatForAI(searchResult);
+
+    // Build AI prompt
     var promptText = 'Photo uploaded by ' + senderName + (caption ? '. Caption: ' + caption + '.' : '.') +
       '
 
@@ -164,31 +180,27 @@ Image search results:
 ' + searchSummary +
       '
 
-Identify the product, assess China sourcing opportunities, estimate EU retail price and margin. ' +
-      'If this is a catalogue/supplier page extract all product details. Be direct and practical.';
-    var history = [];
-    try { history = await core.getChatHistory(sid); } catch(e) {}
-    var msgs = history.slice(-6).map(function(m) { return { role: m.role, content: m.content }; });
-    msgs.push({ role: 'user', content: promptText });
-    var reply = await core.callAI(msgs, core.getBaseSystem(), 800, 55000);
+Please identify the product, assess China sourcing options, estimate EU retail price and margin. ' +
+      'If this is a catalogue page extract all product details. Be direct and practical.';
+
+    var msgs = [{ role: 'user', content: promptText }];
+    var reply = await core.callAI(msgs, core.getBaseSystem ? core.getBaseSystem() : null, 800, 55000);
     if (!reply) reply = 'Search results:
 ' + searchSummary;
-    await core.saveMessage(sid, 'user', senderName + ' uploaded a photo' + (caption ? ': ' + caption : ''), req.partner ? req.partner.id : null, 'web', senderName);
-    await core.saveMessage(sid, 'assistant', reply, null, 'web', null);
-    res.json({ reply: reply, searchResult: { queryUsed: searchResult.queryUsed, labels: (searchResult.vision && searchResult.vision.labels || []).slice(0,5), webEntities: (searchResult.vision && searchResult.vision.webEntities || []).slice(0,5) }, session_id: sid });
-  } catch(e) { console.error('[photo]', e.message); res.status(500).json({ error: e.message }); }
-});
 
-// ---- IMAGE SEARCH ENDPOINT ----
-app.post('/api/image-search', requireAuth, upload.single('image'), async function(req, res) {
-  try {
-    var b64 = req.file ? req.file.buffer.toString('base64') : null;
-    var mime = req.file ? req.file.mimetype : null;
-    var keywords = (req.body && req.body.keywords) || '';
-    if (!b64 && !keywords) return res.status(400).json({ error: 'Provide image file or keywords' });
-    var result = await imgSearch.searchProduct(b64, mime, { keywords: keywords || undefined });
-    res.json({ success: true, result: result, summary: imgSearch.formatForAI(result) });
-  } catch(e) { console.error('[image-search]', e.message); res.status(500).json({ error: e.message }); }
+    await core.saveMessage(sid, 'user', senderName + ' sent a photo' + (caption ? ': ' + caption : ''), req.partner ? req.partner.id : null, 'web', senderName);
+    await core.saveMessage(sid, 'assistant', reply, null, 'web', null);
+
+    res.json({
+      reply: reply,
+      searchResult: {
+        queryUsed:   searchResult.queryUsed || '',
+        labels:      (searchResult.vision && searchResult.vision.labels      || []).slice(0, 5),
+        webEntities: (searchResult.vision && searchResult.vision.webEntities || []).slice(0, 5)
+      },
+      session_id: sid
+    });
+  } catch(e) { console.error('[photo]', e.message); res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/chat/voice', requireAuth, upload.single('audio'), async function(req, res) {
@@ -329,7 +341,7 @@ app.get('/api/debug/tg', async function(req, res) {
     var histR = await supabase.from('chat_messages').select('role,content').eq('session_id',sid).order('created_at',{ascending:false}).limit(3);
     result.histCount = (histR.data||[]).length;
     result.steps.push('4_hist='+result.histCount);
-    var reply = await core.callAI([{role:'user',content:'Say CONFIRM in one word'}], getTGSystem()+memory, 50, 10000);
+    var reply = await core.callAI([{role:'user',content:'Say CONFIRM in one word'}], TG_SYSTEM+memory, 50, 10000);
     result.reply = reply ? reply.slice(0,50) : null;
     result.steps.push('5_reply='+(reply?reply.slice(0,20):'NULL'));
     if (reply) {
@@ -344,21 +356,11 @@ app.get('/api/debug/tg', async function(req, res) {
 });
 
 // ---- HELPERS ----
-function getTGSystem() {
-  var now = new Date();
-  var dateStr = now.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  var utc = now.getTime() + now.getTimezoneOffset() * 60000;
-  var cn = new Date(utc + 8*60*60000);
-  var timeStr = cn.getHours().toString().padStart(2,'0') + ':' + cn.getMinutes().toString().padStart(2,'0');
-  return 'You are Valeran, AI assistant for Synergy Ventures at Canton Fair 2026 in Guangzhou. ' +
-    'Team: Alexander (EN/owner), Ina (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi (BG/remote). ' +
-    'TODAY: ' + dateStr + ', ' + timeStr + ' local time in China (UTC+8). ALWAYS use this date when asked. ' +
-    'Canton Fair: Phase 1 Apr 15-19, Phase 2 Apr 23-27, Phase 3 May 1-5. ' +
-    'LANGUAGE: detect input language, reply ONLY in same language. BG=BG, RU=RU, EN=EN. Never mix. ' +
-    'STYLE: short and direct for Telegram. 1-3 sentences unless full report requested. ' +
-    'NEVER start reply with EN:, BG:, RU:, **EN**, **BG** etc. Reply directly. ' +
-    'Margin target >35%. Sourcing: 1688 cheapest, Alibaba for export. Image search available via photo.';
-}
+var TG_SYSTEM = 'You are Valeran, AI assistant for Synergy Ventures at Canton Fair 2026 in Guangzhou. ' +
+  'Team: Alexander (EN), Ina (RU), Konstantin Khoch (RU), Konstantin Ganev (BG), Slavi (BG). ' +
+  'LANGUAGE: detect the language of the message and reply ONLY in that language. ONE language only per reply. Never reply in two languages. Never mix. BG message=BG reply only. RU message=RU reply only. EN message=EN reply only. ' +
+  'STYLE: short and direct. 1-3 sentences for simple questions. No fluff. ' +
+  'Use [Context:...] when present ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ that is what someone replied to.';
 
 function cleanTG(s) {
   if (!s) return s;
@@ -444,21 +446,21 @@ app.post('/api/telegram/webhook', async function(req, res) {
       } else if (isText) {
         method = 'text';
         var txtRaw = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ');
-        summary = await core.callAI([{ role: 'user', content: 'You are a Canton Fair sourcing analyst. Extract ALL business data from this file: supplier names, product names, model numbers, prices (note currency), MOQ, payment terms, contacts, certifications. Format the response for Telegram: *Section Title* for headers, • for bullet points, no ## markdown, no language prefix. Group products by category if multiple exist. ' + txtRaw.slice(0,5000) }], getTGSystem(), 600, 18000);
+        summary = await core.callAI([{ role: 'user', content: 'You are a Canton Fair sourcing analyst. Extract ALL business data from this file: supplier names, product names, model numbers, prices (note currency), MOQ, payment terms, contacts, certifications. Format the response for Telegram: *Section Title* for headers, • for bullet points, no ## markdown, no language prefix. Group products by category if multiple exist. ' + txtRaw.slice(0,5000) }], TG_SYSTEM, 600, 18000);
       } else if (isOffice) {
         method = 'office';
         var rawTxt = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ' ');
         var extracted = (rawTxt.match(/[a-zA-Z0-9\u0400-\u04FF]{3,}/g) || []).join(' ');
         if (extracted.length > 200) {
           method = 'office (text)';
-          summary = await core.callAI([{ role: 'user', content: 'You are a Canton Fair sourcing analyst. Extract all business data from this ' + fext + ' file. Extract business info: ' + extracted.slice(0,4000) }], getTGSystem(), 600, 18000);
+          summary = await core.callAI([{ role: 'user', content: 'You are a Canton Fair sourcing analyst. Extract all business data from this ' + fext + ' file. Extract business info: ' + extracted.slice(0,4000) }], TG_SYSTEM, 600, 18000);
         } else {
           summary = 'Saved "' + fname + '"' + (cap ? '\nNote: ' + cap : '') + '\n\n' + fext.toUpperCase() + ' file - cannot read binary content.\nTo share: export as .csv or .txt and send that, or paste the key data as a message.';
         }
       } else if (isPDF) {
         var pTxt = buffer.toString('utf8').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g,' ');
         var wc = (pTxt.match(/[a-zA-Z\u0400-\u04FF]{3,}/g)||[]).length;
-        if (wc > 80 && wc/Math.max(1,buffer.length/100) > 1.5) { method='PDF text'; summary=await core.callAI([{role:'user',content:'You are a Canton Fair sourcing analyst. Extract all business data: products, prices, MOQ, supplier info, certifications, payment terms, contacts. Format for Telegram: *Section Title* for headers, • for bullets, no ## markdown, no language prefix. '+pTxt.slice(0,5000)}],getTGSystem(),700,22000); }
+        if (wc > 80 && wc/Math.max(1,buffer.length/100) > 1.5) { method='PDF text'; summary=await core.callAI([{role:'user',content:'You are a Canton Fair sourcing analyst. Extract all business data: products, prices, MOQ, supplier info, certifications, payment terms, contacts. Format for Telegram: *Section Title* for headers, • for bullets, no ## markdown, no language prefix. '+pTxt.slice(0,5000)}],TG_SYSTEM,700,22000); }
         if (!summary) {
           method='PDF vision';
           var pCtrl=new AbortController(); setTimeout(function(){pCtrl.abort();},40000);
@@ -472,7 +474,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
           try {
             var oR=await fetch('https://vision.googleapis.com/v1/images:annotate?key='+process.env.GOOGLE_API_KEY,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requests:[{image:{content:b64.slice(0,4000000)},features:[{type:'DOCUMENT_TEXT_DETECTION'}]}]})});
             var oD=await oR.json(); var oT=oD.responses&&oD.responses[0]&&oD.responses[0].fullTextAnnotation&&oD.responses[0].fullTextAnnotation.text||'';
-            if(oT.length>100)summary=await core.callAI([{role:'user',content:'Analyse OCR text: '+oT.slice(0,4000)}],getTGSystem(),600,18000);
+            if(oT.length>100)summary=await core.callAI([{role:'user',content:'Analyse OCR text: '+oT.slice(0,4000)}],TG_SYSTEM,600,18000);
           } catch(oe){}
         }
       }
@@ -564,7 +566,7 @@ app.post('/api/telegram/webhook', async function(req, res) {
       var vMsgs = ((vHR.data || []).reverse()).map(function(m) { return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }; });
       vMsgs.push({ role: 'user', content: vQuery });
 
-      var vReply = await core.callAI(vMsgs, getTGSystem() + vSystemExtra + vMem, 500, 18000);
+      var vReply = await core.callAI(vMsgs, TG_SYSTEM + vSystemExtra + vMem, 500, 18000);
       if (!vReply) { res.sendStatus(200); return; }
 
       // Split response and LOGGED section if present
@@ -643,7 +645,7 @@ app.post('/api/process-tg', async function(req, res) {
       return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content };
     });
     msgs.push({ role: 'user', content: from + ': ' + query });
-    var reply = await core.callAI(msgs, getTGSystem() + memory, 400, 4000);
+    var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 4000);
     if (reply) {
       reply = cleanTG(reply);
       await tgSend(chatId, reply, msg.message_id);
@@ -656,28 +658,23 @@ app.post('/api/process-tg', async function(req, res) {
   res.sendStatus(200);
 });
 
-// ---- CRON (called by Vercel cron job at /api/cron daily at 06:00 UTC) ----
-app.get('/api/cron', async function(req, res) {
-  res.sendStatus(200); // respond immediately
-  try {
-    var now = new Date();
-    var hourUTC = now.getUTCHours();
-    var sid = await getActiveSessionId(now.toISOString().slice(0,10)) || 'team-chat';
-    var d = now.toISOString().slice(0,10);
-    // Morning briefing (06:00 UTC = 14:00 China)
-    if (hourUTC >= 5 && hourUTC <= 7) {
-      var report = await core.generateMorningReport(sid, d);
-      if (report) await tg.sendReportToTelegram(report).catch(console.error);
-    }
-    // Evening report (13:00 UTC = 21:00 China)
-    if (hourUTC >= 12 && hourUTC <= 14) {
-      var evening = await core.generateEveningReport(sid, d);
-      if (evening) await tg.sendReportToTelegram(evening).catch(console.error);
-      scraper.enrichAllProducts(sid).catch(console.error);
-    }
-  } catch(e) { console.error('[cron]', e.message); }
+// ---- CRON ----
+cron.schedule('30 13 * * *', async function() {
+  var sid = await getActiveSessionId(); if (!sid) return;
+  var report = await core.generateEveningReport(sid, new Date().toISOString().split('T')[0]);
+  await tg.sendReportToTelegram(report);
+  scraper.enrichAllProducts(sid).catch(console.error);
 });
-
+cron.schedule('0 23 * * *', async function() {
+  var t = new Date(); t.setDate(t.getDate() + 1);
+  var d = t.toISOString().split('T')[0];
+  var sid = await getActiveSessionId(d); if (!sid) return;
+  await tg.sendReportToTelegram(await core.generateMorningReport(sid, d));
+});
+cron.schedule('0 14 * * *', async function() {
+  var sid = await getActiveSessionId(); if (!sid) return;
+  scraper.enrichAllProducts(sid).catch(console.error);
+});
 
 async function getActiveSessionId(date) {
   var d = date || new Date().toISOString().split('T')[0];
