@@ -52,7 +52,6 @@ export default function Chat({ supabase, partner }) {
     var ch = supabase.channel('sv_chat_v7')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, function(payload) {
         var m = payload.new
-        if (m.session_id !== 'team-chat') return
         var me = (window.__valeranUser || '').toLowerCase()
         var sender = (m.telegram_user || '').toLowerCase()
         var isMyMsg = m.role === 'user' && me && sender === me
