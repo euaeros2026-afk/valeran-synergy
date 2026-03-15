@@ -162,10 +162,10 @@ export default function Chat({ supabase, partner }) {
 
   function addTemp(content) {
     var msg = { id: 'tmp-' + Date.now(), role: 'user', content: content, telegram_user: window.__valeranUser || '', _mine: true, _tmp: true, created_at: new Date().toISOString() }
-    // BUG4-FIX (removed optimistic add — realtime delivers): // setMessages(function(p) { return p.concat([msg]) })setMessages(function(p) { return p.concat([msg]) })
+    setMessages(function(p) { return p.concat([msg]) })
   }
   function addAI(reply) {
-    // BUG4-FIX (removed optimistic add — realtime delivers): // setMessages(function(p) { return p.concat([{ id: 'ai-' + Date.now(), role: 'assistant', content: reply, _mine: false, created_at: new Date().toISOString() }]) })setMessages(function(p) { return p.concat([{ id: 'ai-' + Date.now(), role: 'assistant', content: reply, _mine: false, created_at: new Date().toISOString() }]) })
+    setMessages(function(p) { return p.concat([{ id: 'ai-' + Date.now(), role: 'assistant', content: reply, _mine: false, created_at: new Date().toISOString() }]) })
   }
 
   async function sendMessage() {
