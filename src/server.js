@@ -594,69 +594,52 @@ app.post('/api/telegram/webhook', async function(req, res) {
     .gte('created_at', new Date(Date.now()-30000).toISOString()).limit(1);
   if (dedup.data && dedup.data.length > 0) { res.sendStatus(200); return; }
   // Respond to Telegram immediately (5s timeout requirement)
+  // Respond to Telegram immediately (<5s requirement)
   res.sendStatus(200);
-  // Process AI in a separate long-running Vercel function
-  // Process AI inline (after responding to TG — Vercel keeps function alive briefly)
-  setImmediate(async function() {
-    try {
-      var loc = await core.getLocationInfo(''); // will default to Sofia
-      var sys = core.getBaseSystem(loc);
-      var histR = await supabase.from('chat_messages')
-        .select('role,content').eq('session_id', sid)
-        .neq('source','telegram_queue')
-        .order('created_at', { ascending: false }).limit(12);
-      var history = (histR.data || []).reverse();
-      var msgs = history.map(function(m) { return { role: m.role, content: m.content }; });
-      msgs.push({ role: 'user', content: from + ': ' + query });
-      var reply = await core.callAI(msgs, sys, 800, 25000);
-      if (!reply) return;
-      var cleanReply = reply.replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n*/gm,'').replace(/^[A-Z]{2,3}:[^\n]*\n*/gm,'').trim();
-      await tgSend(chatId, cleanReply, msg.message_id);
-      await supabase.from('chat_messages').insert([
-        { session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from },
-        { session_id: sid, role: 'assistant', content: cleanReply, source: 'telegram', telegram_user: 'Valeran' }
-      ]);
-    } catch(e) { console.error('[TG inline AI]', e.message); }
-  });
-      msgs.push({ role: 'user', content: from + ': ' + query });
-      var sys = TG_SYSTEM + '\nToday: ' + new Date().toLocaleString('en-GB', { timeZone: 'Europe/Sofia', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' (Sofia/BG time). China time: ' + new Date(Date.now()+8*3600000).toISOString().replace('T',' ').slice(11,16) + ' UTC+8.';
-      var reply = await core.callAI(msgs, sys, 600, 25000);
-      if (!reply) return;
-      var cleanReply = reply.replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n*/gm,'').replace(/^[A-Z]{2,3}:[^\n]*\n*/gm,'').trim();
-      await tgSend(chatId, cleanReply, msg.message_id);
-      await supabase.from('chat_messages').insert([
-        { session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from },
-        { session_id: sid, role: 'assistant', content: cleanReply, source: 'telegram', telegram_user: 'Valeran' }
-      ]);
-    } catch(e) { console.error('[TG inline AI]', e.message); }
-  });;
+  // Fire-and-forget to /api/process-tg (runs in separate Vercel invocation, full 60s timeout)
+  fetch(req.protocol + '://' + req.headers.host + '/api/process-tg', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: query, from: from, chatId: chatId, msgId: msg.message_id, sid: sid })
+  }).catch(function(e) { console.error('[dispatch]', e.message); });
 });
 
 // ---- PROCESS-TG ----
 app.post('/api/process-tg', async function(req, res) {
-  var { query, from, chatId, msgId, sid } = req.body || {};
-  if (!query || !chatId) { res.sendStatus(200); return; }
+  res.sendStatus(200); // respond immediately
+  var query  = req.body && req.body.query;
+  var from   = req.body && req.body.from;
+  var chatId = req.body && req.body.chatId;
+  var msgId  = req.body && req.body.msgId;
+  var sid    = (req.body && req.body.sid) || 'team-chat';
+  if (!query || !chatId) return;
   try {
-    var memory = await core.loadMemory();
+    // Build system prompt with location (default Sofia since TG users are the team)
+    var loc = await core.getLocationInfo('');
+    var sys = core.getBaseSystem(loc);
+    // Load conversation history
     var histR = await supabase.from('chat_messages')
       .select('role,content').eq('session_id', sid)
-      .order('created_at', { ascending: false }).limit(10);
+      .neq('source','telegram_queue')
+      .order('created_at', { ascending: false }).limit(12);
     var history = (histR.data || []).reverse();
-    var msgs = history.map(function(m) {
-      return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content };
-    });
+    var msgs = history.map(function(m) { return { role: m.role, content: m.content }; });
     msgs.push({ role: 'user', content: from + ': ' + query });
-    var reply = await core.callAI(msgs, TG_SYSTEM + memory, 400, 4000);
-    if (reply) {
-      reply = cleanTG(reply);
-      await tgSend(chatId, reply, msg.message_id);
-      await supabase.from('chat_messages').insert([
-        { session_id: sid, role: 'user', content: from + ': ' + query, source: 'telegram', telegram_user: from },
-        { session_id: sid, role: 'assistant', content: reply, source: 'telegram', telegram_user: 'Valeran' }
-      ]);
-    }
-  } catch(e) { console.error('[TG]', e.message); }
-  res.sendStatus(200);
+    // Save user message first
+    await supabase.from('chat_messages').insert({
+      session_id: sid, role: 'user', content: from + ': ' + query,
+      source: 'telegram', telegram_user: from
+    });
+    // Call AI with web search enabled (60s timeout available here)
+    var reply = await core.callAI(msgs, sys, 800, 50000);
+    if (!reply) return;
+    var clean = reply.replace(/^\*\*[A-Z]{2,3}\*\*[^\n]*\n*/gm,'').replace(/^[A-Z]{2,3}:[^\n]*\n*/gm,'').trim();
+    await tgSend(chatId, clean, msgId);
+    await supabase.from('chat_messages').insert({
+      session_id: sid, role: 'assistant', content: clean,
+      source: 'telegram', telegram_user: 'Valeran'
+    });
+  } catch(e) { console.error('[process-tg]', e.message); }
 });
 
 // ---- CRON ----
