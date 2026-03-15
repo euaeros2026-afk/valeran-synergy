@@ -1,109 +1,85 @@
 'use strict';
-// Synergy Ventures - Scraping Engine v2
-// Uses ScraperAPI (env: SCRAPERAPI_KEY) for price research
+var supabaseJs = require('@supabase/supabase-js');
+var supabase = supabaseJs.createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+var SCRAPER_KEY = process.env.SCRAPERAPI_KEY || process.env.SCRAPER_API_KEY || '';
 
-const { createClient } = require('@supabase/supabase-js');
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-const SCRAPER_KEY = process.env.SCRAPERAPI_KEY;
-
-async function scrape(targetUrl, cc) {
-  if (!SCRAPER_KEY) throw new Error('SCRAPERAPI_KEY not set in Vercel env vars');
-  const url = 'https://api.scraperapi.com?api_key=' + SCRAPER_KEY + '&url=' + encodeURIComponent(targetUrl) + '&render=false&country_code=' + (cc || 'de');
-  const ctrl = new AbortController();
-  setTimeout(function() { ctrl.abort(); }, 30000);
-  const r = await fetch(url, { signal: ctrl.signal });
-  if (!r.ok) throw new Error('ScraperAPI ' + r.status);
-  return await r.text();
+async function scrapeAmazonDE(query, productId) {
+  if (!SCRAPER_KEY) return [];
+  try {
+    var url = 'https://www.amazon.de/s?k=' + encodeURIComponent(query) + '&language=en_GB';
+    var scraperUrl = 'https://api.scraperapi.com/?api_key=' + SCRAPER_KEY + '&url=' + encodeURIComponent(url);
+    var ctrl = new AbortController();
+    var timer = setTimeout(function() { ctrl.abort(); }, 30000);
+    var r = await fetch(scraperUrl, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!r.ok) return [];
+    var html = await r.text();
+    var results = [];
+    var titleRegex = /aria-label="([^"]{10,200})"/g;
+    var ratingRegex = /([\d.]+) out of 5/g;
+    var priceRegex = /class="a-offscreen">([^<]+)</g;
+    var titles = [], ratings = [], prices = [], m;
+    while ((m = titleRegex.exec(html)) !== null && titles.length < 8) titles.push(m[1].trim());
+    while ((m = ratingRegex.exec(html)) !== null && ratings.length < 8) ratings.push(parseFloat(m[1]));
+    while ((m = priceRegex.exec(html)) !== null && prices.length < 8) prices.push(m[1]);
+    for (var i = 0; i < Math.min(titles.length, 5); i++) {
+      var priceEur = prices[i] ? parseFloat(prices[i].replace(/[^\d.,]/g, '').replace(',', '.')) : null;
+      var result = { product_id: productId || null, platform: 'amazon_de', search_query: query, product_name: titles[i] ? titles[i].slice(0, 200) : null, price_eur: priceEur, rating: ratings[i] || null, url: url, raw_data: { position: i + 1 } };
+      results.push(result);
+      await supabase.from('product_research').insert(result);
+    }
+    console.log('[scraper] Amazon DE:', results.length, 'for', query);
+    return results;
+  } catch(e) { console.error('[scraper] Amazon DE:', e.message); return []; }
 }
 
-async function scrapeAmazonDE(query) {
-  console.log('[scraper] Amazon DE:', query);
-  const html = await scrape('https://www.amazon.de/s?k=' + encodeURIComponent(query) + '&language=en_GB', 'de');
-  const results = [];
-  const titleRe = /class="a-size-medium[^"]*">([^<]{10,120})<\/span>/g;
-  const priceRe = /class="a-price-whole">([\d.]+)<\/span>/g;
-  const prices = []; let pm;
-  while ((pm = priceRe.exec(html)) && prices.length < 10) prices.push(pm[1] + ' EUR');
-  let tm; let i = 0;
-  while ((tm = titleRe.exec(html)) && results.length < 5) {
-    const t = tm[1].replace(/&amp;/g,'&').trim();
-    if (t.length < 10) { i++; continue; }
-    results.push({ source: 'amazon_de', title: t, price: prices[i] || null, url: 'https://www.amazon.de/s?k=' + encodeURIComponent(query) });
-    i++;
-  }
-  return results;
-}
-
-async function scrapeAlibaba(query) {
-  console.log('[scraper] Alibaba:', query);
-  const html = await scrape('https://www.alibaba.com/trade/search?SearchText=' + encodeURIComponent(query) + '&IndexArea=product_en', 'us');
-  const results = [];
-  const priceRe = /\$([\d.]+)\s*-\s*\$([\d.]+)/g;
-  const titleRe = /class="[^"]*search-card-e-title[^"]*"[^>]*>\s*<[^>]+>([^<]{8,150})<\/[^>]+>/g;
-  const prices = []; let pm;
-  while ((pm = priceRe.exec(html)) && prices.length < 10) prices.push('$' + pm[1] + '-$' + pm[2] + ' USD');
-  let tm; let i = 0;
-  while ((tm = titleRe.exec(html)) && results.length < 5) {
-    const t = tm[1].replace(/&amp;/g,'&').trim();
-    if (t.length < 8) { i++; continue; }
-    results.push({ source: 'alibaba', title: t, price: prices[i] || null, url: 'https://www.alibaba.com/trade/search?SearchText=' + encodeURIComponent(query) });
-    i++;
-  }
-  return results;
-}
-
-async function scrapeEmag(query) {
-  console.log('[scraper] eMAG BG:', query);
-  const html = await scrape('https://www.emag.bg/search/' + encodeURIComponent(query), 'bg');
-  const results = [];
-  const priceRe = /class="[^"]*product-new-price[^"]*"[^>]*>([\d\s.,]+)<span/g;
-  const titleRe = /class="card-v2-title[^"]*"[^>]*>([^<]{8,120})</g;
-  const prices = []; let pm;
-  while ((pm = priceRe.exec(html)) && prices.length < 10) prices.push(pm[1].trim() + ' BGN');
-  let tm; let i = 0;
-  while ((tm = titleRe.exec(html)) && results.length < 5) {
-    const t = tm[1].replace(/&amp;/g,'&').trim();
-    if (t.length < 5) { i++; continue; }
-    results.push({ source: 'emag_bg', title: t, price: prices[i] || null, url: 'https://www.emag.bg/search/' + encodeURIComponent(query) });
-    i++;
-  }
-  return results;
+async function scrapeAlibaba(query, productId) {
+  if (!SCRAPER_KEY) return [];
+  try {
+    var url = 'https://www.alibaba.com/trade/search?SearchText=' + encodeURIComponent(query);
+    var scraperUrl = 'https://api.scraperapi.com/?api_key=' + SCRAPER_KEY + '&url=' + encodeURIComponent(url);
+    var ctrl = new AbortController();
+    var timer = setTimeout(function() { ctrl.abort(); }, 30000);
+    var r = await fetch(scraperUrl, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!r.ok) return [];
+    var html = await r.text();
+    var results = [];
+    var priceRegex = /\$([\d.]+)\s*-\s*\$([\d.]+)/g;
+    var titleRegex = /class="[^"]*product-title[^"]*"[^>]*>([^<]{10,200})<\/a>/g;
+    var titles = [], prices = [], m;
+    while ((m = titleRegex.exec(html)) !== null && titles.length < 8) titles.push(m[1].trim());
+    while ((m = priceRegex.exec(html)) !== null && prices.length < 8) prices.push({ min: parseFloat(m[1]), max: parseFloat(m[2]) });
+    for (var i = 0; i < Math.min(titles.length, 5); i++) {
+      var result = { product_id: productId || null, platform: 'alibaba', search_query: query, product_name: titles[i] ? titles[i].slice(0, 200) : null, price_eur: prices[i] ? prices[i].min * 0.92 : null, url: url, raw_data: { price_range_usd: prices[i], position: i + 1 } };
+      results.push(result);
+      await supabase.from('product_research').insert(result);
+    }
+    console.log('[scraper] Alibaba:', results.length, 'for', query);
+    return results;
+  } catch(e) { console.error('[scraper] Alibaba:', e.message); return []; }
 }
 
 async function researchProduct(productName, productId) {
-  console.log('[scraper] researching:', productName);
-  const [amazon, alibaba, emag] = await Promise.allSettled([
-    scrapeAmazonDE(productName),
-    scrapeAlibaba(productName),
-    scrapeEmag(productName)
-  ]);
-  const result = {
-    product_id: productId, product_name: productName,
-    amazon_de:  amazon.status  === 'fulfilled' ? amazon.value  : [],
-    alibaba:    alibaba.status === 'fulfilled' ? alibaba.value : [],
-    emag_bg:    emag.status    === 'fulfilled' ? emag.value    : [],
-    errors: [amazon,alibaba,emag].filter(r=>r.status==='rejected').map(r=>r.reason&&r.reason.message),
-    scraped_at: new Date().toISOString()
-  };
-  if (productId) {
-    try { await supabase.from('products').update({ notes: JSON.stringify(result).slice(0,2000) }).eq('id', productId); }
-    catch(e) { console.error('[scraper save]', e.message); }
-  }
-  return result;
+  console.log('[scraper] Researching:', productName);
+  var eu = await scrapeAmazonDE(productName, productId).catch(function() { return []; });
+  var cn = await scrapeAlibaba(productName, productId).catch(function() { return []; });
+  return { eu: eu, cn: cn };
 }
 
 async function enrichAllProducts(sessionId) {
-  if (!SCRAPER_KEY) { console.log('[scraper] SCRAPERAPI_KEY not set, skipping'); return; }
-  console.log('[scraper] enrichAll session:', sessionId);
-  try {
-    const r = await supabase.from('products').select('id,product_name,notes').order('created_at',{ascending:false}).limit(5);
-    if (!r.data || !r.data.length) return;
-    for (const p of r.data) {
-      try { const c = JSON.parse(p.notes||'{}'); if (c.scraped_at && Date.now()-new Date(c.scraped_at).getTime() < 86400000) continue; } catch(e) {}
-      await researchProduct(p.product_name, p.id);
-      await new Promise(res => setTimeout(res, 2000));
+  console.log('[scraper] Enrichment start for session:', sessionId);
+  var result = await supabase.from('products').select('id, name').eq('session_id', sessionId).limit(20);
+  var products = result.data || [];
+  if (!products.length) { console.log('[scraper] No products'); return; }
+  for (var i = 0; i < products.length; i++) {
+    var p = products[i];
+    if (p.name) {
+      await researchProduct(p.name, p.id).catch(function() {});
+      await new Promise(function(resolve) { setTimeout(resolve, 3000); });
     }
-  } catch(e) { console.error('[enrichAll]', e.message); }
+  }
+  console.log('[scraper] Enrichment done for', products.length, 'products');
 }
 
-module.exports = { scrapeAmazonDE, scrapeAlibaba, scrapeEmag, researchProduct, enrichAllProducts };
+module.exports = { enrichAllProducts: enrichAllProducts, researchProduct: researchProduct, scrapeAmazonDE: scrapeAmazonDE, scrapeAlibaba: scrapeAlibaba };
