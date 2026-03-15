@@ -1,3 +1,7 @@
+  function addTemp(content) {
+    var msg = { id: 'tmp-' + Date.now(), role: 'user', content: content, created_at: new Date().toISOString(), telegram_user: window.__valeranUser || '', _mine: true };
+    setMessages(function(p) { return p.concat([msg]); });
+  }
 import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 
@@ -70,6 +74,7 @@ export default function Chat({ supabase, partner }) {
             if (!replaced) next = next.concat([Object.assign({}, m, { _mine: true })])
             return next
           }
+          if (m.role === 'assistant' && prev.some(function(x) { return x.content === m.content && x.role === 'assistant'; })) return prev;
           if (m.role === 'assistant' && prev.some(function(x) { return x.content === m.content && x.role === 'assistant'; })) return prev;
           return prev.concat([m])
         })
