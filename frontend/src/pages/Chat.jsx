@@ -70,6 +70,7 @@ export default function Chat({ supabase, partner }) {
             if (!replaced) next = next.concat([Object.assign({}, m, { _mine: true })])
             return next
           }
+          if (m.role === 'assistant' && prev.some(function(x) { return x.content === m.content && x.role === 'assistant'; })) return prev;
           return prev.concat([m])
         })
       })
@@ -147,25 +148,7 @@ export default function Chat({ supabase, partner }) {
       var e2 = el.selectionEnd || input.length
       var v = input.slice(0, s) + em + input.slice(e2)
       setInput(v)
-      setTimeout(function() { el.focus(); el.setSelectionRange(s + em.length, s + em.length) }, 0)
-    } else {
-      setInput(function(v) { return v + em })
-    }
-    setShowEmoji(false)
-  }
-
-  function isMine(msg) { return !!msg._mine }
-  function isValeran(msg) { return msg.role === 'assistant' }
-  function getSender(msg) { return isValeran(msg) ? 'Valeran' : (msg.telegram_user || window.__valeranUser || 'Partner') }
-  function fmt(ts) { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
-
-  function addTemp(content) {
-    var tmpId = 'tmp-' + Date.now();
-    var msg = { id: tmpId, role: 'user', content: content, telegram_user: window.__valeranUser || '', _mine: true, _temp: true };
-    setMessages(function(p) { return p.concat([msg]) });
-    setTimeout(function() {
-      setMessages(function(p) { return p.filter(function(x) { return x.id !== tmpId || !x._temp; }); });
-    }, 10000);
+  
   }  function addAI(reply) {
     setMessages(function(p) { return p.concat([{ id: 'ai-' + Date.now(), role: 'assistant', content: reply, _mine: false, created_at: new Date().toISOString() }]) })
   }
@@ -185,7 +168,7 @@ export default function Chat({ supabase, partner }) {
       if (isAI) {
         var ra = await fetch(API + '/api/chat/message', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text: full, session_id: 'team-chat' }) })
         var da = await ra.json()
-        // AI reply arrives via realtime subscription
+        if (da.reply) addAI(da.reply)
       } else {
         await fetch(API + '/api/chat/send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t }, body: JSON.stringify({ text: full, session_id: 'team-chat' }) })
       }
