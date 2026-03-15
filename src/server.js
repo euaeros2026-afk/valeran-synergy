@@ -586,9 +586,8 @@ app.post('/api/telegram/webhook', async function(req, res) {
 
 // ---- PROCESS-TG ----
 app.post('/api/process-tg', async function(req, res) {
-  res.sendStatus(200); // Acknowledge immediately
   var { query, from, chatId, msgId, sid } = req.body || {};
-  if (!query || !chatId) return;
+  if (!query || !chatId) { res.sendStatus(200); return; }
   try {
     var memory = await core.loadMemory();
     var histR = await supabase.from('chat_messages').select('role,content').eq('session_id', sid).order('created_at', {ascending:false}).limit(10);
@@ -604,6 +603,7 @@ app.post('/api/process-tg', async function(req, res) {
       {session_id: sid, role: 'assistant', content: reply, source: 'telegram', telegram_user: 'Valeran'}
     ]);
   } catch(e) { console.error('[process-tg]', e.message); }
+  res.sendStatus(200);
 });
 
 // ---- CRON ----
