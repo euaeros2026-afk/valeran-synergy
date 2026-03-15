@@ -52,33 +52,35 @@ async function getLocationInfo(userIp) {
 
 
 async function callAI(messages, system, maxTokens, timeoutMs, skipWebSearch) {
+  var sys = (typeof system === 'string') ? system : '';
   var ctrl = new AbortController();
   var timer = setTimeout(function() { ctrl.abort(); }, timeoutMs || 55000);
-  try {
+
+  async function doCall(withTools) {
     var body = {
       model: 'claude-sonnet-4-6',
       max_tokens: maxTokens || 1000,
-      system: typeof system === 'string' ? system : '',
+      system: sys,
       messages: messages
     };
-    if (!skipWebSearch) {
+    if (withTools) {
       body.tools = [{ type: 'web_search_20250305', name: 'web_search' }];
     }
+    var headers = {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01'
+    };
+    if (withTools) {
+      headers['anthropic-beta'] = 'web-search-2025-03-05';
+    }
     var r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'web-search-2025-03-05'
-      },
-      body: JSON.stringify(body),
-      signal: ctrl.signal
+      method: 'POST', headers: headers,
+      body: JSON.stringify(body), signal: ctrl.signal
     });
-    clearTimeout(timer);
     if (!r.ok) {
-      var errText = await r.text().catch(function(){return '';});
-      console.error('[callAI]', r.status, errText.slice(0,200));
+      var errBody = await r.json().catch(function(){return {};});
+      console.error('[callAI]', r.status, JSON.stringify(errBody).slice(0,150));
       return null;
     }
     var data = await r.json();
@@ -89,10 +91,31 @@ async function callAI(messages, system, maxTokens, timeoutMs, skipWebSearch) {
       }
     }
     return text.trim() || null;
+  }
+
+  try {
+    // Try with web search first (unless explicitly skipped)
+    var reply = null;
+    if (!skipWebSearch) {
+      reply = await doCall(true);
+    }
+    // Fall back to no-tool call if web search failed or was skipped
+    if (!reply) {
+      reply = await doCall(false);
+    }
+    clearTimeout(timer);
+    return reply;
   } catch(e) {
     clearTimeout(timer);
     console.error('[callAI]', e.message);
-    return null;
+    // Last resort: try without tools
+    try {
+      var fallback = await doCall(false);
+      return fallback;
+    } catch(e2) {
+      console.error('[callAI fallback]', e2.message);
+      return null;
+    }
   }
 }
 
