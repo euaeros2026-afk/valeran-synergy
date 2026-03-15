@@ -74,7 +74,7 @@ export default function Chat({ supabase, partner }) {
           return prev.concat([m])
         })
       })
-      .subscribe(function(status) { if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { setTimeout(function() { loadMessages(); }, 3000); } })
+      .filter(`room_id=eq.${chatId}`).subscribe(function(status) { if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { setTimeout(function() { loadMessages(); }, 3000); } })
 
     var bCh = supabase.channel('typing_sv_v3', { config: { broadcast: { self: false } } })
       .on('broadcast', { event: 'typing' }, function(payload) {
