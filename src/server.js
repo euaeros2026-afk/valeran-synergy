@@ -7,6 +7,7 @@ var supabaseJs = require('@supabase/supabase-js');
 var core       = require('./lib/valeran-core');
 var tg         = require('./lib/telegram-bot');
 var scraper    = require('./lib/scraping-engine');
+const imgSearch = require('./lib/image-search');
 
 var app      = express();
 var supabase = supabaseJs.createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
